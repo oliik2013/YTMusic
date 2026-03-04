@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -144,7 +145,12 @@ func (c *Client) GetLibraryPlaylists(session *Session) ([]models.Playlist, error
 		return nil, err
 	}
 
-	return parseLibraryPlaylists(raw), nil
+	// Debug: log the raw response to see structure
+	// slog.Debug("playlists response", "raw", raw)
+
+	playlists := parseLibraryPlaylists(raw)
+	slog.Info("Got playlists", "count", len(playlists))
+	return playlists, nil
 }
 
 // GetWatchPlaylist retrieves the up-next / queue tracks for a given video.

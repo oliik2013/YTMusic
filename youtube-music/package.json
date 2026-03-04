@@ -1,24 +1,53 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "youtube-music",
-  "title": "Youtube Music",
+  "title": "YouTube Music",
   "description": "Control youtube music playback",
   "icon": "extension-icon.png",
   "license": "MIT",
-  "commands": [
+  "preferences": [
     {
-      "name": "play---pause",
-      "title": "Play / Pause",
-      "description": "Plays / Pause the currently playing track",
-      "mode": "no-view",
-      "subtitle": "Play / Pause music"
+      "name": "apiUrl",
+      "title": "API URL",
+      "description": "URL of the YouTube Music API server",
+      "type": "textfield",
+      "default": "http://localhost:3000",
+      "required": true
+    },
+    {
+      "name": "authMode",
+      "title": "Auth Mode",
+      "description": "localhost = pre-set cookies (no login needed); cookies = token-based login",
+      "type": "dropdown",
+      "default": "localhost",
+      "required": true,
+      "data": [
+        { "title": "Localhost (pre-set cookies)", "value": "localhost" },
+        { "title": "Cookie Login", "value": "cookies" }
+      ]
     }
   ],
+  "commands": [
+    { "name": "play-pause",     "title": "Play / Pause",     "description": "Play or pause the current track", "mode": "no-view", "subtitle": "YouTube Music" },
+    { "name": "next-track",     "title": "Next Track",       "description": "Skip to the next track in the queue", "mode": "no-view", "subtitle": "YouTube Music" },
+    { "name": "previous-track", "title": "Previous Track",   "description": "Go back to the previous track", "mode": "no-view", "subtitle": "YouTube Music" },
+    { "name": "stop",           "title": "Stop",             "description": "Stop playback completely", "mode": "no-view", "subtitle": "YouTube Music" },
+    { "name": "set-volume",     "title": "Set Volume",       "description": "Set the playback volume", "mode": "no-view", "subtitle": "YouTube Music",
+      "arguments": [{ "name": "volume", "type": "text", "placeholder": "0-100", "required": true }] },
+    { "name": "now-playing",    "title": "Now Playing",      "description": "View current track and control playback", "mode": "view",    "subtitle": "YouTube Music" },
+    { "name": "search",         "title": "Search",           "description": "Search for songs, artists, and playlists", "mode": "view",    "subtitle": "YouTube Music" },
+    { "name": "queue",          "title": "Queue",            "description": "View and manage the current playback queue", "mode": "view",    "subtitle": "YouTube Music" },
+    { "name": "playlists",      "title": "Playlists",        "description": "Browse and play your YouTube Music playlists", "mode": "view",    "subtitle": "YouTube Music" },
+    { "name": "login",          "title": "Login",            "description": "Authenticate with YouTube Music using cookies", "mode": "view",    "subtitle": "YouTube Music" }
+  ],
   "dependencies": {
+    "@hey-api/client-fetch": "^0.13.1",
     "@raycast/api": "^1.103.0",
-    "@raycast/utils": "^2.2.1"
+    "@raycast/utils": "^2.2.1",
+    "@tanstack/react-query": "^5.90.21"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "^0.93.1",
     "@raycast/eslint-config": "^2.0.4",
     "@types/node": "22.13.10",
     "@types/react": "19.0.10",
@@ -27,6 +56,7 @@
     "typescript": "^5.8.2"
   },
   "scripts": {
+    "codegen": "openapi-ts",
     "dev": "ray develop",
     "lint": "ray lint",
     "fix-lint": "ray lint --fix",
