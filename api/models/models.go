@@ -15,6 +15,8 @@ type LoginResponse struct {
 // AuthStatusResponse returns the current session status.
 type AuthStatusResponse struct {
 	Authenticated bool   `json:"authenticated" example:"true"`
+	Token         string `json:"token,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ExpiresAt     string `json:"expires_at,omitempty" example:"2026-03-05T00:00:00Z"`
 	AccountName   string `json:"account_name,omitempty" example:"user@gmail.com"`
 }
 
@@ -142,4 +144,11 @@ type MessageResponse struct {
 // VolumeRequest is the request body to set volume.
 type VolumeRequest struct {
 	Volume int `json:"volume" binding:"required" example:"80"`
+}
+
+// UserInfoResponse holds account information.
+type UserInfoResponse struct {
+	AccountName  string `json:"account_name,omitempty"`
+	ChannelID    string `json:"channel_id,omitempty"`
+	ChannelTitle string `json:"channel_title,omitempty"`
 }

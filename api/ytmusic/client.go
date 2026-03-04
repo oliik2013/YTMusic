@@ -153,6 +153,18 @@ func (c *Client) GetLibraryPlaylists(session *Session) ([]models.Playlist, error
 	return playlists, nil
 }
 
+// GetUserInfo retrieves account information.
+func (c *Client) GetUserInfo(session *Session) (*models.UserInfoResponse, error) {
+	body := map[string]interface{}{}
+
+	raw, err := c.doRequest(session, "account/list", body)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseUserInfo(raw), nil
+}
+
 // GetWatchPlaylist retrieves the up-next / queue tracks for a given video.
 func (c *Client) GetWatchPlaylist(session *Session, videoID string, playlistID string) ([]models.Track, error) {
 	body := map[string]interface{}{
@@ -482,6 +494,43 @@ func parseLibraryPlaylistItem(item interface{}) *models.Playlist {
 		Author:       subtitle,
 		ThumbnailURL: thumbnail,
 	}
+}
+
+// parseUserInfo parses the account/list response for user information.
+func parseUserInfo(raw map[string]interface{}) *models.UserInfoResponse {
+	response := &models.UserInfoResponse{}
+
+	// Try to get account info from the response
+	if details, ok := raw["responseContext"].(map[string]interface{}); ok {
+		if mainApp, ok := details["mainAppWebResponseContext"].(map[string]interface{}); ok {
+			_ = mainApp // Used for debugging if needed
+		}
+	}
+
+	// Try different path: response.account
+	if account, ok := raw["accounts"].([]interface{}); ok && len(account) > 0 {
+		if acc, ok := account[0].(map[string]interface{}); ok {
+			if id, ok := acc["id"].(string); ok {
+				response.ChannelID = id
+			}
+			if email, ok := acc["email"].(string); ok {
+				response.AccountName = email
+			}
+		}
+	}
+
+	// Try: response.header
+	if header, ok := raw["header"].(map[string]interface{}); ok {
+		if cloudMiner, ok := header["cloudMinerResponseRenderer"].(map[string]interface{}); ok {
+			if title, ok := cloudMiner["title"].(map[string]interface{}); ok {
+				if text, ok := title["text"].(string); ok {
+					response.ChannelTitle = text
+				}
+			}
+		}
+	}
+
+	return response
 }
 
 // parseWatchPlaylist parses the next endpoint response to get queued tracks.

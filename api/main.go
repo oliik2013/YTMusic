@@ -96,6 +96,7 @@ func main() {
 	auth.Use(middleware.AuthRequired(sessionStore, cfg.Auth.Cookies))
 	{
 		// Auth
+		auth.GET("/user", authHandler.UserInfo)
 		auth.DELETE("/auth/logout", authHandler.Logout)
 
 		// Player

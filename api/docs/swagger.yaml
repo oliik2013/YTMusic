@@ -231,6 +231,15 @@ definitions:
         example: dQw4w9WgXcQ
         type: string
     type: object
+  models.UserInfoResponse:
+    properties:
+      account_name:
+        type: string
+      channel_id:
+        type: string
+      channel_title:
+        type: string
+    type: object
   models.VolumeRequest:
     properties:
       volume:
@@ -761,6 +770,25 @@ paths:
       summary: Search YouTube Music
       tags:
       - search
+  /user:
+    get:
+      description: Returns account information from YouTube Music.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserInfoResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user info
+      tags:
+      - auth
 securityDefinitions:
   ApiKeyAuth:
     in: header
