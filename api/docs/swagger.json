@@ -1,0 +1,1104 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "A self-contained YouTube Music player backend that authenticates via browser cookies,\nresolves audio streams through the Innertube internal API, and plays audio locally.\nDesigned as a modular music player daemon for TUIs, Raycast extensions, and other clients.",
+        "title": "YouTube Music API",
+        "contact": {
+            "name": "YTMusic API"
+        },
+        "license": {
+            "name": "MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "Submit your browser Cookie header string to create an authenticated session.\nCopy it from a POST request to music.youtube.com in browser DevTools (Network tab).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Authenticate with YouTube Music",
+                "parameters": [
+                    {
+                        "description": "Browser cookies",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Removes the current session, requiring re-authentication.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout and invalidate session",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns whether the current session is valid and the associated account.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Check authentication status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AuthStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/next": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Advances to the next track in the queue. Returns the new player state.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Skip to next track",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/pause": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Pauses the current track if playing, or resumes if paused.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Toggle pause/resume",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/play": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Resolves the audio stream for a YouTube Music video ID and begins playback.\nIf the track is not already in the queue, it is added at the current position.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Play a track",
+                "parameters": [
+                    {
+                        "description": "Track to play",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/previous": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Goes back to the previous track in the queue. Returns the new player state.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Go to previous track",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/state": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns the current playback state including current track, pause status, and queue info.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Get player state",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/stop": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Stops the current track and clears the playing state. Queue is preserved.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Stop playback",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player/volume": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Sets the playback volume (0-100).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player"
+                ],
+                "summary": "Set playback volume",
+                "parameters": [
+                    {
+                        "description": "Volume level",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.VolumeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/playlists": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns all playlists from the authenticated user's YouTube Music library.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playlists"
+                ],
+                "summary": "List user's playlists",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlaylistListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/playlists/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns the metadata and full track listing for a playlist by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playlists"
+                ],
+                "summary": "Get playlist details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playlist ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlaylistDetailResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/playlists/{id}/play": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Loads all tracks from the playlist into the queue and begins playback from the first track.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playlists"
+                ],
+                "summary": "Play a playlist",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playlist ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PlayerState"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/queue": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns the full playback queue with track details and current position.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "List queue",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QueueResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Removes all tracks from the queue. Stops playback if active.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "Clear queue",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/queue/add": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Adds a track to the end of the playback queue by video ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "Add track to queue",
+                "parameters": [
+                    {
+                        "description": "Track to add",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.QueueAddRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QueueResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/queue/{position}": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Removes the track at the specified position (0-indexed) from the queue.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "Remove track from queue",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Queue position (0-indexed)",
+                        "name": "position",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QueueResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/search": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Searches YouTube Music for songs, albums, artists, or playlists.\nUse the filter parameter to narrow results to a specific type.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Search YouTube Music",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter type: songs, albums, artists, playlists, videos",
+                        "name": "filter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max results to return (default 20)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.AlbumInfo": {
+            "type": "object",
+            "properties": {
+                "browse_id": {
+                    "type": "string",
+                    "example": "MPREb_..."
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Whenever You Need Somebody"
+                }
+            }
+        },
+        "models.AlbumRef": {
+            "type": "object",
+            "properties": {
+                "artist": {
+                    "type": "string",
+                    "example": "Rick Astley"
+                },
+                "browse_id": {
+                    "type": "string",
+                    "example": "MPREb_..."
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Whenever You Need Somebody"
+                },
+                "year": {
+                    "type": "string",
+                    "example": "1987"
+                }
+            }
+        },
+        "models.Artist": {
+            "type": "object",
+            "properties": {
+                "browse_id": {
+                    "type": "string",
+                    "example": "UCuAXFkgsw1L7xaCfnd5JJOw"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Rick Astley"
+                }
+            }
+        },
+        "models.AuthStatusResponse": {
+            "type": "object",
+            "properties": {
+                "account_name": {
+                    "type": "string",
+                    "example": "user@gmail.com"
+                },
+                "authenticated": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "models.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "example": 401
+                },
+                "error": {
+                    "type": "string",
+                    "example": "unauthorized"
+                }
+            }
+        },
+        "models.LoginRequest": {
+            "type": "object",
+            "required": [
+                "cookies"
+            ],
+            "properties": {
+                "cookies": {
+                    "description": "Raw Cookie header string copied from browser DevTools",
+                    "type": "string",
+                    "example": "SAPISID=abc123/...; __Secure-3PSID=..."
+                }
+            }
+        },
+        "models.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "example": "2026-03-05T00:00:00Z"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "models.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "ok"
+                }
+            }
+        },
+        "models.PlayRequest": {
+            "type": "object",
+            "required": [
+                "video_id"
+            ],
+            "properties": {
+                "video_id": {
+                    "type": "string",
+                    "example": "dQw4w9WgXcQ"
+                }
+            }
+        },
+        "models.PlayerState": {
+            "type": "object",
+            "properties": {
+                "current_track": {
+                    "$ref": "#/definitions/models.Track"
+                },
+                "is_paused": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "is_playing": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "queue_length": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "queue_position": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "volume": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "models.Playlist": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "type": "string",
+                    "example": "user@gmail.com"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "My top picks"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "PLxxxxxxxxxxxxxxxx"
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "My Favorites"
+                },
+                "track_count": {
+                    "type": "integer",
+                    "example": 42
+                }
+            }
+        },
+        "models.PlaylistDetailResponse": {
+            "type": "object",
+            "properties": {
+                "playlist": {
+                    "$ref": "#/definitions/models.Playlist"
+                },
+                "tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Track"
+                    }
+                }
+            }
+        },
+        "models.PlaylistListResponse": {
+            "type": "object",
+            "properties": {
+                "playlists": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Playlist"
+                    }
+                }
+            }
+        },
+        "models.QueueAddRequest": {
+            "type": "object",
+            "required": [
+                "video_id"
+            ],
+            "properties": {
+                "video_id": {
+                    "type": "string",
+                    "example": "dQw4w9WgXcQ"
+                }
+            }
+        },
+        "models.QueueItem": {
+            "type": "object",
+            "properties": {
+                "position": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "track": {
+                    "$ref": "#/definitions/models.Track"
+                }
+            }
+        },
+        "models.QueueResponse": {
+            "type": "object",
+            "properties": {
+                "current_position": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.QueueItem"
+                    }
+                },
+                "length": {
+                    "type": "integer",
+                    "example": 5
+                }
+            }
+        },
+        "models.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "example": "never gonna give you up"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SearchResult"
+                    }
+                }
+            }
+        },
+        "models.SearchResult": {
+            "type": "object",
+            "properties": {
+                "album": {
+                    "$ref": "#/definitions/models.AlbumRef"
+                },
+                "artist": {
+                    "$ref": "#/definitions/models.Artist"
+                },
+                "playlist": {
+                    "$ref": "#/definitions/models.Playlist"
+                },
+                "result_type": {
+                    "description": "song, playlist, album, artist",
+                    "type": "string",
+                    "example": "song"
+                },
+                "track": {
+                    "$ref": "#/definitions/models.Track"
+                }
+            }
+        },
+        "models.Track": {
+            "type": "object",
+            "properties": {
+                "album": {
+                    "type": "string",
+                    "example": "Whenever You Need Somebody"
+                },
+                "album_info": {
+                    "$ref": "#/definitions/models.AlbumInfo"
+                },
+                "artist": {
+                    "type": "string",
+                    "example": "Rick Astley"
+                },
+                "artists": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Artist"
+                    }
+                },
+                "duration": {
+                    "type": "string",
+                    "example": "3:33"
+                },
+                "duration_ms": {
+                    "type": "integer",
+                    "example": 213000
+                },
+                "thumbnail_url": {
+                    "type": "string",
+                    "example": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Never Gonna Give You Up"
+                },
+                "video_id": {
+                    "type": "string",
+                    "example": "dQw4w9WgXcQ"
+                }
+            }
+        },
+        "models.VolumeRequest": {
+            "type": "object",
+            "required": [
+                "volume"
+            ],
+            "properties": {
+                "volume": {
+                    "type": "integer",
+                    "example": 80
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "X-Session-Token",
+            "in": "header"
+        }
+    }
+}

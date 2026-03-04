@@ -1,0 +1,732 @@
+basePath: /
+definitions:
+  models.AlbumInfo:
+    properties:
+      browse_id:
+        example: MPREb_...
+        type: string
+      name:
+        example: Whenever You Need Somebody
+        type: string
+    type: object
+  models.AlbumRef:
+    properties:
+      artist:
+        example: Rick Astley
+        type: string
+      browse_id:
+        example: MPREb_...
+        type: string
+      thumbnail_url:
+        type: string
+      title:
+        example: Whenever You Need Somebody
+        type: string
+      year:
+        example: "1987"
+        type: string
+    type: object
+  models.Artist:
+    properties:
+      browse_id:
+        example: UCuAXFkgsw1L7xaCfnd5JJOw
+        type: string
+      name:
+        example: Rick Astley
+        type: string
+    type: object
+  models.AuthStatusResponse:
+    properties:
+      account_name:
+        example: user@gmail.com
+        type: string
+      authenticated:
+        example: true
+        type: boolean
+    type: object
+  models.ErrorResponse:
+    properties:
+      code:
+        example: 401
+        type: integer
+      error:
+        example: unauthorized
+        type: string
+    type: object
+  models.LoginRequest:
+    properties:
+      cookies:
+        description: Raw Cookie header string copied from browser DevTools
+        example: SAPISID=abc123/...; __Secure-3PSID=...
+        type: string
+    required:
+    - cookies
+    type: object
+  models.LoginResponse:
+    properties:
+      expires_at:
+        example: "2026-03-05T00:00:00Z"
+        type: string
+      token:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  models.MessageResponse:
+    properties:
+      message:
+        example: ok
+        type: string
+    type: object
+  models.PlayRequest:
+    properties:
+      video_id:
+        example: dQw4w9WgXcQ
+        type: string
+    required:
+    - video_id
+    type: object
+  models.PlayerState:
+    properties:
+      current_track:
+        $ref: '#/definitions/models.Track'
+      is_paused:
+        example: false
+        type: boolean
+      is_playing:
+        example: true
+        type: boolean
+      queue_length:
+        example: 5
+        type: integer
+      queue_position:
+        example: 0
+        type: integer
+      volume:
+        example: 100
+        type: integer
+    type: object
+  models.Playlist:
+    properties:
+      author:
+        example: user@gmail.com
+        type: string
+      description:
+        example: My top picks
+        type: string
+      id:
+        example: PLxxxxxxxxxxxxxxxx
+        type: string
+      thumbnail_url:
+        type: string
+      title:
+        example: My Favorites
+        type: string
+      track_count:
+        example: 42
+        type: integer
+    type: object
+  models.PlaylistDetailResponse:
+    properties:
+      playlist:
+        $ref: '#/definitions/models.Playlist'
+      tracks:
+        items:
+          $ref: '#/definitions/models.Track'
+        type: array
+    type: object
+  models.PlaylistListResponse:
+    properties:
+      playlists:
+        items:
+          $ref: '#/definitions/models.Playlist'
+        type: array
+    type: object
+  models.QueueAddRequest:
+    properties:
+      video_id:
+        example: dQw4w9WgXcQ
+        type: string
+    required:
+    - video_id
+    type: object
+  models.QueueItem:
+    properties:
+      position:
+        example: 0
+        type: integer
+      track:
+        $ref: '#/definitions/models.Track'
+    type: object
+  models.QueueResponse:
+    properties:
+      current_position:
+        example: 0
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/models.QueueItem'
+        type: array
+      length:
+        example: 5
+        type: integer
+    type: object
+  models.SearchResponse:
+    properties:
+      query:
+        example: never gonna give you up
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/models.SearchResult'
+        type: array
+    type: object
+  models.SearchResult:
+    properties:
+      album:
+        $ref: '#/definitions/models.AlbumRef'
+      artist:
+        $ref: '#/definitions/models.Artist'
+      playlist:
+        $ref: '#/definitions/models.Playlist'
+      result_type:
+        description: song, playlist, album, artist
+        example: song
+        type: string
+      track:
+        $ref: '#/definitions/models.Track'
+    type: object
+  models.Track:
+    properties:
+      album:
+        example: Whenever You Need Somebody
+        type: string
+      album_info:
+        $ref: '#/definitions/models.AlbumInfo'
+      artist:
+        example: Rick Astley
+        type: string
+      artists:
+        items:
+          $ref: '#/definitions/models.Artist'
+        type: array
+      duration:
+        example: "3:33"
+        type: string
+      duration_ms:
+        example: 213000
+        type: integer
+      thumbnail_url:
+        example: https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg
+        type: string
+      title:
+        example: Never Gonna Give You Up
+        type: string
+      video_id:
+        example: dQw4w9WgXcQ
+        type: string
+    type: object
+  models.VolumeRequest:
+    properties:
+      volume:
+        example: 80
+        type: integer
+    required:
+    - volume
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: YTMusic API
+  description: |-
+    A self-contained YouTube Music player backend that authenticates via browser cookies,
+    resolves audio streams through the Innertube internal API, and plays audio locally.
+    Designed as a modular music player daemon for TUIs, Raycast extensions, and other clients.
+  license:
+    name: MIT
+  title: YouTube Music API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Submit your browser Cookie header string to create an authenticated session.
+        Copy it from a POST request to music.youtube.com in browser DevTools (Network tab).
+      parameters:
+      - description: Browser cookies
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Authenticate with YouTube Music
+      tags:
+      - auth
+  /auth/logout:
+    delete:
+      description: Removes the current session, requiring re-authentication.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Logout and invalidate session
+      tags:
+      - auth
+  /auth/status:
+    get:
+      description: Returns whether the current session is valid and the associated
+        account.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuthStatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Check authentication status
+      tags:
+      - auth
+  /player/next:
+    post:
+      description: Advances to the next track in the queue. Returns the new player
+        state.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Skip to next track
+      tags:
+      - player
+  /player/pause:
+    post:
+      description: Pauses the current track if playing, or resumes if paused.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Toggle pause/resume
+      tags:
+      - player
+  /player/play:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Resolves the audio stream for a YouTube Music video ID and begins playback.
+        If the track is not already in the queue, it is added at the current position.
+      parameters:
+      - description: Track to play
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.PlayRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Play a track
+      tags:
+      - player
+  /player/previous:
+    post:
+      description: Goes back to the previous track in the queue. Returns the new player
+        state.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Go to previous track
+      tags:
+      - player
+  /player/state:
+    get:
+      description: Returns the current playback state including current track, pause
+        status, and queue info.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get player state
+      tags:
+      - player
+  /player/stop:
+    post:
+      description: Stops the current track and clears the playing state. Queue is
+        preserved.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Stop playback
+      tags:
+      - player
+  /player/volume:
+    post:
+      consumes:
+      - application/json
+      description: Sets the playback volume (0-100).
+      parameters:
+      - description: Volume level
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.VolumeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Set playback volume
+      tags:
+      - player
+  /playlists:
+    get:
+      description: Returns all playlists from the authenticated user's YouTube Music
+        library.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlaylistListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List user's playlists
+      tags:
+      - playlists
+  /playlists/{id}:
+    get:
+      description: Returns the metadata and full track listing for a playlist by ID.
+      parameters:
+      - description: Playlist ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlaylistDetailResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get playlist details
+      tags:
+      - playlists
+  /playlists/{id}/play:
+    post:
+      description: Loads all tracks from the playlist into the queue and begins playback
+        from the first track.
+      parameters:
+      - description: Playlist ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PlayerState'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Play a playlist
+      tags:
+      - playlists
+  /queue:
+    delete:
+      description: Removes all tracks from the queue. Stops playback if active.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Clear queue
+      tags:
+      - queue
+    get:
+      description: Returns the full playback queue with track details and current
+        position.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QueueResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List queue
+      tags:
+      - queue
+  /queue/{position}:
+    delete:
+      description: Removes the track at the specified position (0-indexed) from the
+        queue.
+      parameters:
+      - description: Queue position (0-indexed)
+        in: path
+        name: position
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QueueResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Remove track from queue
+      tags:
+      - queue
+  /queue/add:
+    post:
+      consumes:
+      - application/json
+      description: Adds a track to the end of the playback queue by video ID.
+      parameters:
+      - description: Track to add
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.QueueAddRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QueueResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Add track to queue
+      tags:
+      - queue
+  /search:
+    get:
+      description: |-
+        Searches YouTube Music for songs, albums, artists, or playlists.
+        Use the filter parameter to narrow results to a specific type.
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: 'Filter type: songs, albums, artists, playlists, videos'
+        in: query
+        name: filter
+        type: string
+      - description: Max results to return (default 20)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Search YouTube Music
+      tags:
+      - search
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-Session-Token
+    type: apiKey
+swagger: "2.0"

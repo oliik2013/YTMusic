@@ -1,0 +1,269 @@
+package player
+
+import (
+	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"ytmusic_api/models"
+
+	"github.com/ebitengine/oto/v3"
+	yt "github.com/kkdai/youtube/v2"
+)
+
+const (
+	sampleRate   = 44100
+	channelCount = 2
+	bitDepth     = 2 // 16-bit = 2 bytes per sample
+)
+
+// Player is the core audio playback engine.
+// It owns the oto context, the current streamer, and the playback queue.
+type Player struct {
+	mu sync.Mutex
+
+	otoCtx    *oto.Context
+	otoPlayer *oto.Player
+	streamer  *Streamer
+	ytClient  *yt.Client
+
+	Queue *Queue
+
+	currentTrack *models.Track
+	isPlaying    bool
+	isPaused     bool
+	volume       int // 0-100
+}
+
+// NewPlayer creates a new Player instance and initialises the audio context.
+func NewPlayer() (*Player, error) {
+	op := &oto.NewContextOptions{
+		SampleRate:   sampleRate,
+		ChannelCount: channelCount,
+		Format:       oto.FormatSignedInt16LE,
+	}
+
+	otoCtx, readyChan, err := oto.NewContext(op)
+	if err != nil {
+		return nil, fmt.Errorf("initialising audio context: %w", err)
+	}
+	<-readyChan
+
+	return &Player{
+		otoCtx:   otoCtx,
+		ytClient: &yt.Client{},
+		Queue:    NewQueue(),
+		volume:   100,
+	}, nil
+}
+
+// PlayTrack resolves the audio stream for a videoId, stops any current playback,
+// and begins playing the new track.
+func (p *Player) PlayTrack(track *models.Track) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Stop any current playback
+	p.stopLocked()
+
+	// Resolve audio stream URL via kkdai/youtube
+	streamURL, err := p.resolveAudioURL(track.VideoID)
+	if err != nil {
+		return fmt.Errorf("resolving audio for %s: %w", track.VideoID, err)
+	}
+
+	// Enrich track info if title is missing
+	if track.Title == "" {
+		if info, infoErr := p.getVideoInfo(track.VideoID); infoErr == nil && info != nil {
+			track.Title = info.Title
+			track.Artist = info.Author
+			track.ThumbnailURL = info.Thumbnails[0].URL
+		}
+	}
+
+	// Start ffmpeg streamer
+	streamer, err := NewStreamer(streamURL)
+	if err != nil {
+		return fmt.Errorf("creating audio streamer: %w", err)
+	}
+
+	// Create oto player from the PCM stream
+	otoPlayer := p.otoCtx.NewPlayer(streamer)
+	otoPlayer.Play()
+
+	p.streamer = streamer
+	p.otoPlayer = otoPlayer
+	p.currentTrack = track
+	p.isPlaying = true
+	p.isPaused = false
+
+	// Monitor for track end in background
+	go p.monitorPlayback()
+
+	return nil
+}
+
+// Pause toggles pause/resume on the current track.
+func (p *Player) Pause() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.otoPlayer == nil {
+		return
+	}
+
+	if p.isPaused {
+		p.otoPlayer.Play()
+		p.isPaused = false
+		p.isPlaying = true
+	} else {
+		p.otoPlayer.Pause()
+		p.isPaused = true
+		p.isPlaying = false
+	}
+}
+
+// Stop halts all playback and releases the streamer.
+func (p *Player) Stop() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stopLocked()
+}
+
+// stopLocked stops playback (caller must hold p.mu).
+func (p *Player) stopLocked() {
+	if p.otoPlayer != nil {
+		p.otoPlayer.Pause()
+		p.otoPlayer = nil
+	}
+	if p.streamer != nil {
+		_ = p.streamer.Close()
+		p.streamer = nil
+	}
+	p.isPlaying = false
+	p.isPaused = false
+}
+
+// Next skips to the next track in the queue.
+// Returns the new track or nil if queue is exhausted.
+func (p *Player) Next() (*models.Track, error) {
+	next := p.Queue.Next()
+	if next == nil {
+		p.Stop()
+		return nil, nil
+	}
+	if err := p.PlayTrack(next); err != nil {
+		return nil, err
+	}
+	return next, nil
+}
+
+// Previous goes back to the previous track in the queue.
+func (p *Player) Previous() (*models.Track, error) {
+	prev := p.Queue.Previous()
+	if prev == nil {
+		return nil, nil
+	}
+	if err := p.PlayTrack(prev); err != nil {
+		return nil, err
+	}
+	return prev, nil
+}
+
+// State returns the current player state.
+func (p *Player) State() models.PlayerState {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return models.PlayerState{
+		IsPlaying:     p.isPlaying,
+		IsPaused:      p.isPaused,
+		CurrentTrack:  p.currentTrack,
+		QueueLength:   p.Queue.Len(),
+		QueuePosition: p.Queue.Position(),
+		Volume:        p.volume,
+	}
+}
+
+// SetVolume sets the playback volume (0-100).
+func (p *Player) SetVolume(vol int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if vol < 0 {
+		vol = 0
+	}
+	if vol > 100 {
+		vol = 100
+	}
+	p.volume = vol
+
+	if p.otoPlayer != nil {
+		// oto volume is a float64 where 1.0 = 100%
+		p.otoPlayer.SetVolume(float64(vol) / 100.0)
+	}
+}
+
+// resolveAudioURL uses kkdai/youtube to get the best audio-only stream URL for a video.
+func (p *Player) resolveAudioURL(videoID string) (string, error) {
+	video, err := p.ytClient.GetVideo(videoID)
+	if err != nil {
+		return "", fmt.Errorf("fetching video info: %w", err)
+	}
+
+	// Prefer audio-only formats, sorted by bitrate
+	formats := video.Formats.Type("audio")
+	if len(formats) == 0 {
+		return "", fmt.Errorf("no audio streams found for video %s", videoID)
+	}
+
+	// Sort by audio quality (bitrate) descending
+	formats.Sort()
+
+	streamURL, err := p.ytClient.GetStreamURL(video, &formats[0])
+	if err != nil {
+		return "", fmt.Errorf("getting stream URL: %w", err)
+	}
+
+	return streamURL, nil
+}
+
+// getVideoInfo retrieves video metadata via kkdai/youtube.
+func (p *Player) getVideoInfo(videoID string) (*yt.Video, error) {
+	return p.ytClient.GetVideo(videoID)
+}
+
+// monitorPlayback watches for the current track to finish playing, then auto-advances.
+func (p *Player) monitorPlayback() {
+	p.mu.Lock()
+	currentPlayer := p.otoPlayer
+	p.mu.Unlock()
+
+	if currentPlayer == nil {
+		return
+	}
+
+	// Poll until oto player reports it is no longer playing.
+	// oto has no callback mechanism, so we poll with a sleep to avoid CPU spin.
+	for currentPlayer.IsPlaying() {
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	// Check if this is still the active player (not replaced by skip/new play)
+	p.mu.Lock()
+	if p.otoPlayer == currentPlayer {
+		p.stopLocked()
+		p.mu.Unlock()
+
+		// Auto-advance to next track
+		next := p.Queue.Next()
+		if next != nil {
+			if err := p.PlayTrack(next); err != nil {
+				log.Printf("auto-advance failed: %v", err)
+			}
+		}
+	} else {
+		p.mu.Unlock()
+	}
+}
