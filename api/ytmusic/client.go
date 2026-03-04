@@ -145,8 +145,10 @@ func (c *Client) GetLibraryPlaylists(session *Session) ([]models.Playlist, error
 		return nil, err
 	}
 
-	// Debug: log the raw response to see structure
-	// slog.Debug("playlists response", "raw", raw)
+	// Debug: log the raw response as JSON to see structure
+	if jsonBytes, marshalErr := json.MarshalIndent(raw, "", "  "); marshalErr == nil {
+		slog.Info("===== PLAYLISTS RAW RESPONSE =====", "json", string(jsonBytes))
+	}
 
 	playlists := parseLibraryPlaylists(raw)
 	slog.Info("Got playlists", "count", len(playlists))
