@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"os/exec"
 
 	"ytmusic_api/config"
@@ -35,16 +36,22 @@ import (
 // @name X-Session-Token
 
 func main() {
+	// Setup structured logger
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
 	// Load config
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		logger.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
 
 	// Check ffmpeg availability
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		log.Println("WARNING: ffmpeg not found in PATH. Audio playback requires ffmpeg.")
-		log.Println("         Install ffmpeg and ensure it is available in your PATH.")
+		logger.Warn("ffmpeg not found in PATH. Audio playback requires ffmpeg", "hint", "Install ffmpeg and ensure it is available in your PATH")
 	}
 
 	// Initialise core components
@@ -53,21 +60,22 @@ func main() {
 
 	audioPlayer, err := player.NewPlayer()
 	if err != nil {
-		log.Fatalf("Failed to initialise audio player: %v", err)
+		logger.Error("failed to initialise audio player", "error", err)
+		os.Exit(1)
 	}
 
 	// If cookies are pre-seeded in config, auto-login
 	if cfg.Auth.Cookies != "" {
 		session, err := sessionStore.CreateSession(cfg.Auth.Cookies)
 		if err != nil {
-			log.Printf("WARNING: Pre-seeded cookies are invalid: %v", err)
+			logger.Warn("pre-seeded cookies are invalid", "error", err)
 		} else {
-			log.Printf("Auto-logged in with pre-seeded cookies (token: %s)", session.Token)
+			logger.Info("auto-logged in with pre-seeded cookies", "token", session.Token)
 		}
 	}
 
 	// Create handlers
-	authHandler := handlers.NewAuthHandler(sessionStore, ytClient)
+	authHandler := handlers.NewAuthHandler(sessionStore, ytClient, cfg.Auth.Cookies)
 	playerHandler := handlers.NewPlayerHandler(audioPlayer, ytClient)
 	queueHandler := handlers.NewQueueHandler(audioPlayer, ytClient)
 	playlistHandler := handlers.NewPlaylistHandler(audioPlayer, ytClient)
@@ -78,17 +86,17 @@ func main() {
 
 	// --- Public routes (no auth required) ---
 	r.POST("/auth/login", authHandler.Login)
+	r.GET("/auth/status", authHandler.Status)
 
 	// Swagger UI
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	// --- Protected routes (auth required) ---
 	auth := r.Group("/")
-	auth.Use(middleware.AuthRequired(sessionStore))
+	auth.Use(middleware.AuthRequired(sessionStore, cfg.Auth.Cookies))
 	{
 		// Auth
 		auth.DELETE("/auth/logout", authHandler.Logout)
-		auth.GET("/auth/status", authHandler.Status)
 
 		// Player
 		auth.POST("/player/play", playerHandler.Play)
@@ -109,6 +117,7 @@ func main() {
 		auth.GET("/playlists", playlistHandler.ListPlaylists)
 		auth.GET("/playlists/:id", playlistHandler.GetPlaylist)
 		auth.POST("/playlists/:id/play", playlistHandler.PlayPlaylist)
+		auth.POST("/playlists/:id/cache", playlistHandler.CachePlaylist)
 
 		// Search
 		auth.GET("/search", searchHandler.Search)
@@ -116,9 +125,10 @@ func main() {
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("YouTube Music API starting on http://%s", addr)
-	log.Printf("Swagger UI available at http://%s/swagger/index.html", addr)
+	logger.Info("YouTube Music API starting", "addr", fmt.Sprintf("http://%s", addr))
+	logger.Info("Swagger UI available", "addr", fmt.Sprintf("http://%s/swagger/index.html", addr))
 	if err := r.Run(addr); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		logger.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }

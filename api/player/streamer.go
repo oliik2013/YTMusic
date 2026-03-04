@@ -20,13 +20,19 @@ type Streamer struct {
 
 // NewStreamer spawns an ffmpeg process that reads from the given URL and outputs raw PCM to stdout.
 // Output format: signed 16-bit little-endian, 44100 Hz sample rate, 2 channels (stereo).
-func NewStreamer(audioURL string) (*Streamer, error) {
+func NewStreamer(audioURL string, isLocal bool) (*Streamer, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cmd := exec.CommandContext(ctx, "ffmpeg",
-		"-reconnect", "1",
-		"-reconnect_streamed", "1",
-		"-reconnect_delay_max", "5",
+	args := []string{}
+	if !isLocal {
+		args = append(args,
+			"-reconnect", "1",
+			"-reconnect_streamed", "1",
+			"-reconnect_delay_max", "5",
+		)
+	}
+
+	args = append(args,
 		"-i", audioURL,
 		"-f", "s16le", // raw PCM signed 16-bit LE
 		"-ar", "44100", // sample rate
@@ -34,6 +40,8 @@ func NewStreamer(audioURL string) (*Streamer, error) {
 		"-loglevel", "error",
 		"pipe:1", // output to stdout
 	)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

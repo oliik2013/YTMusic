@@ -43,6 +43,12 @@ definitions:
       authenticated:
         example: true
         type: boolean
+      expires_at:
+        example: "2026-03-05T00:00:00Z"
+        type: string
+      token:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
     type: object
   models.ErrorResponse:
     properties:
@@ -299,8 +305,9 @@ paths:
       - auth
   /auth/status:
     get:
-      description: Returns whether the current session is valid and the associated
-        account.
+      description: |-
+        Returns whether the current session is valid and the associated account.
+        If pre-seeded cookies are configured and request is from localhost, returns token without auth.
       produces:
       - application/json
       responses:
@@ -545,6 +552,36 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Get playlist details
+      tags:
+      - playlists
+  /playlists/{id}/cache:
+    post:
+      description: Queues all tracks from the playlist for background caching via
+        yt-dlp.
+      parameters:
+      - description: Playlist ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Cache a playlist
       tags:
       - playlists
   /playlists/{id}/play:

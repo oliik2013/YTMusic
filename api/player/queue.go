@@ -30,6 +30,9 @@ func (q *Queue) Add(track models.Track) {
 	if len(q.items) == 1 {
 		q.position = 0
 	}
+	if DefaultCacheManager != nil {
+		DefaultCacheManager.QueueDownload(track.VideoID)
+	}
 }
 
 // AddAll appends multiple tracks to the queue.
@@ -40,6 +43,11 @@ func (q *Queue) AddAll(tracks []models.Track) {
 	q.items = append(q.items, tracks...)
 	if wasEmpty && len(q.items) > 0 {
 		q.position = 0
+	}
+	if DefaultCacheManager != nil {
+		for _, track := range tracks {
+			DefaultCacheManager.QueueDownload(track.VideoID)
+		}
 	}
 }
 
@@ -157,5 +165,10 @@ func (q *Queue) ReplaceAll(tracks []models.Track) {
 		q.position = 0
 	} else {
 		q.position = -1
+	}
+	if DefaultCacheManager != nil {
+		for _, track := range tracks {
+			DefaultCacheManager.QueueDownload(track.VideoID)
+		}
 	}
 }

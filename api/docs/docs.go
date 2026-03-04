@@ -104,7 +104,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Returns whether the current session is valid and the associated account.",
+                "description": "Returns whether the current session is valid and the associated account.\nIf pre-seeded cookies are configured and request is from localhost, returns token without auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -486,6 +486,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/playlists/{id}/cache": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Queues all tracks from the playlist for background caching via yt-dlp.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "playlists"
+                ],
+                "summary": "Cache a playlist",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Playlist ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/playlists/{id}/play": {
             "post": {
                 "security": [
@@ -821,6 +867,14 @@ const docTemplate = `{
                 "authenticated": {
                     "type": "boolean",
                     "example": true
+                },
+                "expires_at": {
+                    "type": "string",
+                    "example": "2026-03-05T00:00:00Z"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 }
             }
         },

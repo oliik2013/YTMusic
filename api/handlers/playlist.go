@@ -145,3 +145,52 @@ func (h *PlaylistHandler) PlayPlaylist(c *gin.Context) {
 
 	c.JSON(http.StatusOK, h.Player.State())
 }
+
+// CachePlaylist godoc
+// @Summary      Cache a playlist
+// @Description  Queues all tracks from the playlist for background caching via yt-dlp.
+// @Tags         playlists
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id path string true "Playlist ID"
+// @Success      200 {object} models.MessageResponse
+// @Failure      401 {object} models.ErrorResponse
+// @Failure      500 {object} models.ErrorResponse
+// @Router       /playlists/{id}/cache [post]
+func (h *PlaylistHandler) CachePlaylist(c *gin.Context) {
+	session := middleware.GetSession(c)
+	if session == nil {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error: "not authenticated",
+			Code:  http.StatusUnauthorized,
+		})
+		return
+	}
+
+	playlistID := c.Param("id")
+	detail, err := h.Client.GetPlaylist(session, playlistID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error: "failed to fetch playlist: " + err.Error(),
+			Code:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	if len(detail.Tracks) == 0 {
+		c.JSON(http.StatusOK, models.MessageResponse{
+			Message: "playlist is empty",
+		})
+		return
+	}
+
+	if player.DefaultCacheManager != nil {
+		for _, track := range detail.Tracks {
+			player.DefaultCacheManager.QueueDownload(track.VideoID)
+		}
+	}
+
+	c.JSON(http.StatusOK, models.MessageResponse{
+		Message: "playlist queued for caching",
+	})
+}
