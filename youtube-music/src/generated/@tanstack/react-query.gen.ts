@@ -8,6 +8,7 @@ import {
   deleteQueue,
   deleteQueueByPosition,
   getAuthStatus,
+  getLyrics,
   getPlayerState,
   getPlaylists,
   getPlaylistsById,
@@ -766,4 +767,26 @@ export const getUserOptions = (options?: Options<GetUserData>) =>
       return data;
     },
     queryKey: getUserQueryKey(options),
+  });
+
+export const getLyricsQueryKey = (options: Options<GetLyricsData>) =>
+  createQueryKey("getLyrics", options);
+
+export const getLyricsOptions = (options: Options<GetLyricsData>) =>
+  queryOptions<
+    GetLyricsResponse,
+    GetLyricsError,
+    GetLyricsResponse,
+    ReturnType<typeof getLyricsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getLyrics({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: getLyricsQueryKey(options),
   });

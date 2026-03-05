@@ -52,14 +52,15 @@ type PlayRequest struct {
 
 // PlayerState represents the current playback state.
 type PlayerState struct {
-	IsPlaying     bool   `json:"is_playing" example:"true"`
-	IsPaused      bool   `json:"is_paused" example:"false"`
-	CurrentTrack  *Track `json:"current_track,omitempty"`
-	QueueLength   int    `json:"queue_length" example:"5"`
-	QueuePosition int    `json:"queue_position" example:"0"`
-	Volume        int    `json:"volume" example:"100"`
-	Shuffle       bool   `json:"shuffle" example:"false"`
-	Repeat        string `json:"repeat" example:"off"` // "off", "all", "one"
+	IsPlaying        bool   `json:"is_playing" example:"true"`
+	IsPaused         bool   `json:"is_paused" example:"false"`
+	CurrentTrack     *Track `json:"current_track,omitempty"`
+	QueueLength      int    `json:"queue_length" example:"5"`
+	QueuePosition    int    `json:"queue_position" example:"0"`
+	Volume           int    `json:"volume" example:"100"`
+	Shuffle          bool   `json:"shuffle" example:"false"`
+	Repeat           string `json:"repeat" example:"off"` // "off", "all", "one"
+	CurrentPositionMs int64 `json:"current_position_ms" example:"50000"` // Current playback position in milliseconds
 }
 
 // QueueItem represents a single item in the playback queue.
@@ -158,4 +159,24 @@ type UserInfoResponse struct {
 	AccountName  string `json:"account_name,omitempty"`
 	ChannelID    string `json:"channel_id,omitempty"`
 	ChannelTitle string `json:"channel_title,omitempty"`
+}
+
+// LyricsLine represents a single synced lyrics line with timestamp.
+type LyricsLine struct {
+	TimeMs int64  `json:"time_ms" example:"5000"`
+	Text   string `json:"text" example:"We're no strangers to love"`
+}
+
+// LyricsResponse holds lyrics data from LrcLib.
+type LyricsResponse struct {
+	ID            int64         `json:"id" example:"12345"`
+	TrackName     string        `json:"track_name" example:"Never Gonna Give You Up"`
+	ArtistName    string        `json:"artist_name" example:"Rick Astley"`
+	AlbumName     string        `json:"album_name,omitempty" example:"Whenever You Need Somebody"`
+	Duration      float64       `json:"duration,omitempty" example:"213.0"`
+	Instrumental  bool          `json:"instrumental" example:"false"`
+	PlainLyrics   string        `json:"plain_lyrics,omitempty"`
+	SyncedLyrics  string        `json:"synced_lyrics,omitempty"`
+	ParsedLyrics  []LyricsLine  `json:"parsed_lyrics,omitempty"`
+	Source        string        `json:"source" example:"lrclib"`
 }

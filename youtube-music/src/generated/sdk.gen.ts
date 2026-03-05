@@ -506,3 +506,20 @@ export const getUser = <ThrowOnError extends boolean = false>(
     url: "/user",
     ...options,
   });
+
+/**
+ * Get lyrics for a track
+ *
+ * Searches LrcLib for lyrics by track name and artist. Returns synced lyrics if available, otherwise plain lyrics.
+ */
+export const getLyrics = <ThrowOnError extends boolean = false>(
+  options: Options<GetLyricsData, ThrowOnError>,
+) =>
+  (options?.client ?? client).get<
+    GetLyricsResponses,
+    GetLyricsErrors,
+    ThrowOnError
+  >({
+    url: "/lyrics",
+    ...options,
+  });

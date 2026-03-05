@@ -257,15 +257,23 @@ func (p *Player) State() models.PlayerState {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	var currentPositionMs int64
+	if p.isPlaying && !p.isPaused {
+		currentPositionMs = time.Since(p.playStartTime).Milliseconds() + p.pausedDuration.Milliseconds()
+	} else {
+		currentPositionMs = p.pausedDuration.Milliseconds()
+	}
+
 	return models.PlayerState{
-		IsPlaying:     p.isPlaying,
-		IsPaused:      p.isPaused,
-		CurrentTrack:  p.currentTrack,
-		QueueLength:   p.Queue.Len(),
-		QueuePosition: p.Queue.Position(),
-		Volume:        p.volume,
-		Shuffle:       p.shuffle,
-		Repeat:        p.repeat,
+		IsPlaying:         p.isPlaying,
+		IsPaused:          p.isPaused,
+		CurrentTrack:      p.currentTrack,
+		QueueLength:       p.Queue.Len(),
+		QueuePosition:     p.Queue.Position(),
+		Volume:            p.volume,
+		Shuffle:           p.shuffle,
+		Repeat:            p.repeat,
+		CurrentPositionMs: currentPositionMs,
 	}
 }
 

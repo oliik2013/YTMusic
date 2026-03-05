@@ -41,6 +41,7 @@
     { "name": "queue",          "title": "Queue",            "description": "View and manage the current playback queue", "mode": "view",    "subtitle": "YouTube Music" },
     { "name": "playlists",      "title": "Playlists",        "description": "Browse and play your YouTube Music playlists", "mode": "view",    "subtitle": "YouTube Music" },
     { "name": "user-info",      "title": "User Info",        "description": "View your YouTube Music account info", "mode": "view",    "subtitle": "YouTube Music" },
+    { "name": "lyrics",         "title": "Lyrics",           "description": "View lyrics for the currently playing track with real-time sync", "mode": "view",    "subtitle": "YouTube Music" },
     { "name": "login",          "title": "Login",            "description": "Authenticate with YouTube Music using cookies", "mode": "view",    "subtitle": "YouTube Music" }
   ],
   "dependencies": {

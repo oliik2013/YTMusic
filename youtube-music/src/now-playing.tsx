@@ -5,11 +5,13 @@ import {
   Icon,
   Toast,
   showToast,
+  push,
 } from "@raycast/api";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { initClient } from "./lib/client";
 import { QueryProvider } from "./components/QueryProvider";
+import LyricsView from "./lyrics";
 import {
   getPlayerStateOptions,
   postPlayerPauseMutation,
@@ -161,32 +163,42 @@ function NowPlaying() {
           <Action
             title={isPlaying ? "Pause" : "Play"}
             icon={isPlaying ? Icon.Pause : Icon.Play}
-            onAction={() => pauseMutation.mutate()}
+            onAction={() => pauseMutation.mutate({})}
           />
           <Action
             title="Next Track"
             icon={Icon.Forward}
-            onAction={() => nextMutation.mutate()}
+            onAction={() => nextMutation.mutate({})}
           />
           <Action
             title="Previous Track"
             icon={Icon.Rewind}
-            onAction={() => prevMutation.mutate()}
+            onAction={() => prevMutation.mutate({})}
           />
           <Action
             title="Stop"
             icon={Icon.Stop}
-            onAction={() => stopMutation.mutate()}
+            onAction={() => stopMutation.mutate({})}
           />
           <Action
             title={data?.shuffle ? "Disable Shuffle" : "Enable Shuffle"}
             icon={data?.shuffle ? Icon.ArrowUp : Icon.ArrowDown}
-            onAction={() => shuffleMutation.mutate()}
+            onAction={() => shuffleMutation.mutate({})}
           />
           <Action
             title={`Repeat: ${data?.repeat === "one" ? "One" : data?.repeat === "all" ? "All" : "Off"}`}
             icon={Icon.Repeat}
             onAction={cycleRepeat}
+          />
+          <Action
+            title="View Lyrics"
+            icon={Icon.Text}
+            shortcut={{ modifiers: ["cmd"], key: "l" }}
+            onAction={() => {
+              if (track) {
+                push(<LyricsView />);
+              }
+            }}
           />
         </ActionPanel>
       }

@@ -840,3 +840,47 @@ export type GetUserResponses = {
 };
 
 export type GetUserResponse = GetUserResponses[keyof GetUserResponses];
+
+export type ModelsLyricsLine = {
+  time_ms?: number;
+  text?: string;
+};
+
+export type ModelsLyricsResponse = {
+  id?: number;
+  track_name?: string;
+  artist_name?: string;
+  album_name?: string;
+  duration?: number;
+  instrumental?: boolean;
+  plain_lyrics?: string;
+  synced_lyrics?: string;
+  parsed_lyrics?: Array<ModelsLyricsLine>;
+  source?: string;
+};
+
+export type GetLyricsData = {
+  body?: never;
+  path?: never;
+  query: {
+    track_name: string;
+    artist_name: string;
+    album_name?: string;
+  };
+  url: "/lyrics";
+};
+
+export type GetLyricsErrors = {
+  400: ModelsErrorResponse;
+  404: ModelsErrorResponse;
+  500: ModelsErrorResponse;
+};
+
+export type GetLyricsError = GetLyricsErrors[keyof GetLyricsErrors];
+
+export type GetLyricsResponses = {
+  200: ModelsLyricsResponse;
+};
+
+export type GetLyricsResponse =
+  GetLyricsResponses[keyof GetLyricsResponses];

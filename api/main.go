@@ -148,6 +148,7 @@ func main() {
 	queueHandler := handlers.NewQueueHandler(audioPlayer, ytClient)
 	playlistHandler := handlers.NewPlaylistHandler(audioPlayer, ytClient)
 	searchHandler := handlers.NewSearchHandler(ytClient)
+	lyricsHandler := handlers.NewLyricsHandler()
 
 	// Setup Gin router
 	r := gin.Default()
@@ -155,6 +156,7 @@ func main() {
 	// --- Public routes (no auth required) ---
 	r.POST("/auth/login", authHandler.Login)
 	r.GET("/auth/status", authHandler.Status)
+	r.GET("/lyrics", lyricsHandler.GetLyrics)
 
 	// Swagger UI
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
