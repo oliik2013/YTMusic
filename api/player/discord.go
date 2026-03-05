@@ -2,7 +2,6 @@ package player
 
 import (
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -18,7 +17,6 @@ type DiscordPresence struct {
 
 func NewDiscordPresence(clientID string) (*DiscordPresence, error) {
 	if clientID == "" {
-		slog.Debug("Discord Client ID not configured, skipping Discord RPC initialization")
 		return nil, nil
 	}
 
@@ -27,8 +25,6 @@ func NewDiscordPresence(clientID string) (*DiscordPresence, error) {
 		return nil, fmt.Errorf("creating Discord RPC client: %w", err)
 	}
 
-	slog.Info("Discord RPC connected", "clientID", clientID)
-
 	return &DiscordPresence{
 		client: drpc,
 	}, nil
@@ -36,6 +32,11 @@ func NewDiscordPresence(clientID string) (*DiscordPresence, error) {
 
 func (d *DiscordPresence) UpdatePresence(track *models.Track, isPlaying bool, positionMs int64) {
 	if d == nil || d.client == nil {
+		return
+	}
+
+	if !isPlaying {
+		d.Clear()
 		return
 	}
 
@@ -65,9 +66,7 @@ func (d *DiscordPresence) UpdatePresence(track *models.Track, isPlaying bool, po
 		}
 	}
 
-	if err := d.client.SetActivity(activity); err != nil {
-		slog.Error("failed to set Discord activity", "error", err)
-	}
+	_ = d.client.SetActivity(activity)
 }
 
 func (d *DiscordPresence) Clear() {
@@ -79,9 +78,7 @@ func (d *DiscordPresence) Clear() {
 	defer d.mu.Unlock()
 
 	emptyActivity := discordrpc.Activity{}
-	if err := d.client.SetActivity(emptyActivity); err != nil {
-		slog.Error("failed to clear Discord activity", "error", err)
-	}
+	_ = d.client.SetActivity(emptyActivity)
 }
 
 func (d *DiscordPresence) Close() {
@@ -92,7 +89,5 @@ func (d *DiscordPresence) Close() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if err := d.client.Socket.Close(); err != nil {
-		slog.Error("failed to close Discord RPC connection", "error", err)
-	}
+	_ = d.client.Socket.Close()
 }

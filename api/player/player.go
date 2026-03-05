@@ -81,6 +81,7 @@ func NewPlayer(discordClientID string) (*Player, error) {
 	}
 	// Start media-key/headphone event listener for playback controls
 	go StartMediaEventDispatcher(p)
+	StartMediaHotkeyListener()
 	return p, nil
 }
 
@@ -121,6 +122,7 @@ func (p *Player) PlayTrack(track *models.Track) error {
 
 	// Create oto player from the PCM stream
 	otoPlayer := p.otoCtx.NewPlayer(streamer)
+	otoPlayer.SetVolume(float64(p.volume) / 100.0)
 	otoPlayer.Play()
 
 	p.streamer = streamer
