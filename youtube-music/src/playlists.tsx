@@ -68,7 +68,7 @@ function PlaylistsView() {
             <ActionPanel>
               <Action.Push
                 title="View Tracks"
-                target={<PlaylistDetail id={pl.id!} />}
+                target={<QueryProvider><PlaylistDetail id={pl.id!} /></QueryProvider>}
               />
               <Action
                 title="Play Playlist"
