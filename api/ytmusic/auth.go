@@ -86,6 +86,19 @@ func (s *SessionStore) DeleteSession(token string) {
 	s.mu.Unlock()
 }
 
+// GetAnySession returns any valid session from the store (useful for pre-seeded auth).
+func (s *SessionStore) GetAnySession() *Session {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, session := range s.sessions {
+		if time.Now().Before(session.ExpiresAt) {
+			return session
+		}
+	}
+	return nil
+}
+
 // GetAuthorizationHeader computes the SAPISIDHASH authorization header value.
 // Format: SAPISIDHASH <timestamp>_<sha1(timestamp + " " + SAPISID + " " + origin)>
 func GetAuthorizationHeader(sapisid string) string {

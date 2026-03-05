@@ -151,9 +151,9 @@ func (c *Client) GetLibraryPlaylists(session *Session) ([]models.Playlist, error
 	}
 
 	// Debug: log the raw response as JSON to see structure
-	if jsonBytes, marshalErr := json.MarshalIndent(raw, "", "  "); marshalErr == nil {
-		slog.Info("===== PLAYLISTS RAW RESPONSE =====", "json", string(jsonBytes))
-	}
+	// if jsonBytes, marshalErr := json.MarshalIndent(raw, "", "  "); marshalErr == nil {
+	// 	slog.Info("===== PLAYLISTS RAW RESPONSE =====", "json", string(jsonBytes))
+	// }
 
 	playlists := parseLibraryPlaylists(raw)
 	slog.Info("Got playlists", "count", len(playlists))
@@ -352,10 +352,13 @@ func parsePlaylistResponse(raw map[string]interface{}, playlistID string) *model
 		Playlist: models.Playlist{ID: playlistID},
 	}
 
-	// Extract header
+	// Extract header - try multiple locations
 	headerRenderer := navigatePath(raw, "header", "musicImmersiveHeaderRenderer")
 	if headerRenderer == nil {
 		headerRenderer = navigatePath(raw, "header", "musicDetailHeaderRenderer")
+	}
+	if headerRenderer == nil {
+		headerRenderer = navigatePath(raw, "background", "musicThumbnailRenderer")
 	}
 	if headerRenderer == nil {
 		slog.Debug("No header renderer found")
@@ -367,18 +370,29 @@ func parsePlaylistResponse(raw map[string]interface{}, playlistID string) *model
 		slog.Debug("Parsed header", "title", resp.Playlist.Title)
 	}
 
-	// Extract tracks
+	// Extract tracks - try two different structures
+	var sections []interface{}
+
+	// Try singleColumnBrowseResultsRenderer first
 	sectionContents := navigatePath(raw, "contents", "singleColumnBrowseResultsRenderer", "tabs")
-	tabs, ok := sectionContents.([]interface{})
-	if !ok || len(tabs) == 0 {
-		slog.Debug("No tabs found in contents")
-		return resp
+	if tabs, ok := sectionContents.([]interface{}); ok && len(tabs) > 0 {
+		if tabContent := navigatePath(tabs[0], "tabRenderer", "content", "sectionListRenderer", "contents"); tabContent != nil {
+			if secs, ok := tabContent.([]interface{}); ok {
+				sections = secs
+			}
+		}
 	}
 
-	tabContents := navigatePath(tabs[0], "tabRenderer", "content", "sectionListRenderer", "contents")
-	sections, ok := tabContents.([]interface{})
-	if !ok || len(sections) == 0 {
-		slog.Debug("No sections in tab")
+	// If not found, try twoColumnBrowseResultsRenderer (secondaryContents)
+	if len(sections) == 0 {
+		sectionContents = navigatePath(raw, "contents", "twoColumnBrowseResultsRenderer", "secondaryContents", "sectionListRenderer", "contents")
+		if secs, ok := sectionContents.([]interface{}); ok {
+			sections = secs
+		}
+	}
+
+	if len(sections) == 0 {
+		slog.Debug("No sections found in playlist response")
 		return resp
 	}
 	slog.Debug("Found sections", "count", len(sections))

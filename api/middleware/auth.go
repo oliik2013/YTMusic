@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
 
 	"ytmusic_api/models"
@@ -19,9 +20,41 @@ const (
 
 // AuthRequired returns a Gin middleware that validates the X-Session-Token header
 // against the given SessionStore. If valid, the session is stored in the context.
-func AuthRequired(store *ytmusic.SessionStore) gin.HandlerFunc {
+// For localhost requests with pre-seeded cookies in config, auth is skipped entirely.
+// For localhost requests with a Cookie header, auth is skipped if a session can be created.
+func AuthRequired(store *ytmusic.SessionStore, preSeededCookies string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader(SessionTokenHeader)
+
+		// For localhost requests with pre-seeded cookies, skip auth entirely
+		if token == "" && isLocalhost(c) && preSeededCookies != "" {
+			session := store.GetAnySession()
+			if session != nil {
+				c.Set(SessionKey, session)
+				c.Next()
+				return
+			}
+			// Try to create a session from pre-seeded cookies
+			session, err := store.CreateSession(preSeededCookies)
+			if err == nil {
+				c.Set(SessionKey, session)
+				c.Next()
+				return
+			}
+		}
+
+		// For localhost requests with a Cookie header, create session from cookie
+		if token == "" && isLocalhost(c) {
+			if cookie := c.GetHeader("Cookie"); cookie != "" {
+				session, err := store.CreateSession(cookie)
+				if err == nil {
+					c.Set(SessionKey, session)
+					c.Next()
+					return
+				}
+			}
+		}
+
 		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, models.ErrorResponse{
 				Error: "missing X-Session-Token header",
@@ -56,4 +89,9 @@ func GetSession(c *gin.Context) *ytmusic.Session {
 		return nil
 	}
 	return session
+}
+
+func isLocalhost(c *gin.Context) bool {
+	ip := c.ClientIP()
+	return ip == "127.0.0.1" || ip == "::1" || ip == "::ffff:127.0.0.1" || net.ParseIP(ip).IsLoopback()
 }
