@@ -19,10 +19,16 @@ type AuthConfig struct {
 	Cookies string `yaml:"cookies"`
 }
 
+// DiscordConfig holds Discord RPC settings.
+type DiscordConfig struct {
+	ClientID string `yaml:"client_id"`
+}
+
 // Config is the top-level configuration loaded from ~/.ytmusic/config.yaml.
 type Config struct {
-	Server ServerConfig `yaml:"server"`
-	Auth   AuthConfig   `yaml:"auth"`
+	Server  ServerConfig  `yaml:"server"`
+	Auth    AuthConfig    `yaml:"auth"`
+	Discord DiscordConfig `yaml:"discord"`
 }
 
 // DefaultConfig returns a config with sane defaults.
@@ -31,6 +37,9 @@ func DefaultConfig() *Config {
 		Server: ServerConfig{
 			Port: 8080,
 			Host: "localhost",
+		},
+		Discord: DiscordConfig{
+			ClientID: "",
 		},
 	}
 }

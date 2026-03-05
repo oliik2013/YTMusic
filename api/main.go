@@ -125,11 +125,12 @@ func main() {
 	sessionStore := ytmusic.NewSessionStore()
 	ytClient := ytmusic.NewClient()
 
-	audioPlayer, err := player.NewPlayer()
+	audioPlayer, err := player.NewPlayer(cfg.Discord.ClientID)
 	if err != nil {
 		logger.Error("failed to initialise audio player", "error", err)
 		os.Exit(1)
 	}
+	defer audioPlayer.Close()
 
 	// If cookies are pre-seeded in config, auto-login
 	if cfg.Auth.Cookies != "" {

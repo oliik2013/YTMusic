@@ -1,8 +1,11 @@
 package player
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -30,16 +33,20 @@ type Player struct {
 
 	Queue *Queue
 
-	currentTrack *models.Track
-	isPlaying    bool
-	isPaused     bool
-	volume       int // 0-100
-	shuffle      bool
-	repeat       string // "off", "all", "one"
+	discord *DiscordPresence
+
+	currentTrack   *models.Track
+	isPlaying      bool
+	isPaused       bool
+	volume         int // 0-100
+	shuffle        bool
+	repeat         string // "off", "all", "one"
+	playStartTime  time.Time
+	pausedDuration time.Duration
 }
 
 // NewPlayer creates a new Player instance and initialises the audio context.
-func NewPlayer() (*Player, error) {
+func NewPlayer(discordClientID string) (*Player, error) {
 	op := &oto.NewContextOptions{
 		SampleRate:   sampleRate,
 		ChannelCount: channelCount,
@@ -52,12 +59,29 @@ func NewPlayer() (*Player, error) {
 	}
 	<-readyChan
 
-	return &Player{
+	discordPresence, err := NewDiscordPresence(discordClientID)
+	if err != nil {
+		return nil, fmt.Errorf("initialising Discord presence: %w", err)
+	}
+
+	// Attempt to load saved volume from disk and apply it on startup
+	vol := 100
+	if saved, err := loadVolumeFromDisk(); err == nil {
+		if saved >= 0 && saved <= 100 {
+			vol = saved
+		}
+	}
+
+	p := &Player{
 		otoCtx:   otoCtx,
 		ytClient: &yt.Client{},
 		Queue:    NewQueue(),
-		volume:   100,
-	}, nil
+		volume:   vol,
+		discord:  discordPresence,
+	}
+	// Start media-key/headphone event listener for playback controls
+	go StartMediaEventDispatcher(p)
+	return p, nil
 }
 
 // PlayTrack resolves the audio stream for a videoId, stops any current playback,
@@ -104,6 +128,13 @@ func (p *Player) PlayTrack(track *models.Track) error {
 	p.currentTrack = track
 	p.isPlaying = true
 	p.isPaused = false
+	p.playStartTime = time.Now()
+	p.pausedDuration = 0
+
+	// Update Discord presence
+	if p.discord != nil {
+		p.discord.UpdatePresence(track, true, 0)
+	}
 
 	// Monitor for track end in background
 	go p.monitorPlayback()
@@ -128,6 +159,8 @@ func (p *Player) Pause() {
 		p.otoPlayer.Play()
 		p.isPaused = false
 		p.isPlaying = true
+		// Adjust play start time to account for paused duration
+		p.playStartTime = time.Now().Add(-p.pausedDuration)
 	} else {
 		slog.Info("Pausing playback")
 		p.otoPlayer.Pause()
@@ -137,6 +170,12 @@ func (p *Player) Pause() {
 		// For paused: isPlaying = true, isPaused = true or isPlaying = false, isPaused = true.
 		p.isPlaying = false
 	}
+
+	// Update Discord presence
+	if p.discord != nil {
+		positionMs := p.currentPositionMs()
+		p.discord.UpdatePresence(p.currentTrack, !p.isPaused, positionMs)
+	}
 }
 
 // Stop halts all playback and releases the streamer.
@@ -144,6 +183,11 @@ func (p *Player) Stop() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.stopLocked()
+
+	// Clear Discord presence
+	if p.discord != nil {
+		p.discord.Clear()
+	}
 }
 
 // stopLocked stops playback (caller must hold p.mu).
@@ -240,6 +284,52 @@ func (p *Player) SetVolume(vol int) {
 		// oto volume is a float64 where 1.0 = 100%
 		p.otoPlayer.SetVolume(float64(vol) / 100.0)
 	}
+
+	// Persist volume to disk for restoration after restart
+	if err := saveVolumeToDisk(vol); err != nil {
+		slog.Error("failed to persist volume", "volume", vol, "error", err)
+	}
+}
+
+// saveVolumeToDisk writes the current volume to disk so it can be restored on restart.
+func saveVolumeToDisk(vol int) error {
+	// Ensure directory exists: ~/.ytmusic
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".ytmusic")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "volume.json")
+	payload, err := json.Marshal(struct {
+		Volume int `json:"volume"`
+	}{Volume: vol})
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, payload, 0644)
+}
+
+// loadVolumeFromDisk reads the saved volume from disk, if present.
+func loadVolumeFromDisk() (int, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0, err
+	}
+	path := filepath.Join(home, ".ytmusic", "volume.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	var payload struct {
+		Volume int `json:"volume"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return 0, err
+	}
+	return payload.Volume, nil
 }
 
 // ToggleShuffle toggles shuffle mode on/off.
@@ -312,16 +402,29 @@ func (p *Player) getVideoInfo(videoID string) (*yt.Video, error) {
 	return p.ytClient.GetVideo(videoID)
 }
 
+// currentPositionMs returns the current playback position in milliseconds.
+func (p *Player) currentPositionMs() int64 {
+	if p.playStartTime.IsZero() || p.currentTrack == nil {
+		return 0
+	}
+	elapsed := time.Since(p.playStartTime) - p.pausedDuration
+	return elapsed.Milliseconds()
+}
+
 // monitorPlayback watches for the current track to finish playing, then auto-advances.
 func (p *Player) monitorPlayback() {
 	p.mu.Lock()
 	currentPlayer := p.otoPlayer
 	currentStreamer := p.streamer
+	currentTrack := p.currentTrack
+	discord := p.discord
 	p.mu.Unlock()
 
 	if currentPlayer == nil || currentStreamer == nil {
 		return
 	}
+
+	var lastPauseTime time.Time
 
 	// Poll until oto player reports it is no longer playing.
 	// oto has no callback mechanism, so we poll with a sleep to avoid CPU spin.
@@ -333,25 +436,57 @@ func (p *Player) monitorPlayback() {
 			return
 		}
 		isPaused := p.isPaused
+		playStartTime := p.playStartTime
+		pausedDuration := p.pausedDuration
 		p.mu.Unlock()
 
 		if !currentPlayer.IsPlaying() {
 			// If playback stopped because of a manual pause, keep waiting.
 			if isPaused {
+				// Track paused duration
+				if lastPauseTime.IsZero() {
+					lastPauseTime = time.Now()
+				} else {
+					p.mu.Lock()
+					p.pausedDuration = pausedDuration + time.Since(lastPauseTime)
+					p.mu.Unlock()
+				}
+				// Update Discord presence while paused
+				if discord != nil && currentTrack != nil {
+					positionMs := p.currentPositionMs()
+					discord.UpdatePresence(currentTrack, false, positionMs)
+				}
 				time.Sleep(250 * time.Millisecond)
 				continue
 			}
+
+			lastPauseTime = time.Time{}
 
 			// If oto reports it's not playing, check if we've actually reached the end of the stream.
 			// Sometimes otoPlayer.IsPlaying() can be briefly false if the buffer is starved or hasn't started yet.
 			if currentStreamer.IsEOF() {
 				break // Stream is finished and oto has drained its buffer
 			}
+		} else {
+			// Track when we resume from pause
+			if lastPauseTime.IsZero() == false && !isPaused {
+				lastPauseTime = time.Time{}
+			}
+			// Update Discord presence periodically while playing
+			if discord != nil && currentTrack != nil && !isPaused && !playStartTime.IsZero() {
+				positionMs := p.currentPositionMs()
+				discord.UpdatePresence(currentTrack, true, positionMs)
+			}
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	slog.Info("Track playback finished naturally", "track", p.currentTrack.Title)
+	slog.Info("Track playback finished naturally", "track", currentTrack.Title)
+
+	// Clear Discord presence when track ends
+	if discord != nil {
+		discord.Clear()
+	}
 
 	// Check if this is still the active player (not replaced by skip/new play)
 	p.mu.Lock()
@@ -371,5 +506,17 @@ func (p *Player) monitorPlayback() {
 		}
 	} else {
 		p.mu.Unlock()
+	}
+}
+
+// Close shuts down the player and releases all resources.
+func (p *Player) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.stopLocked()
+
+	if p.discord != nil {
+		p.discord.Close()
 	}
 }
