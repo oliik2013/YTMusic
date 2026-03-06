@@ -37,7 +37,6 @@ import (
 // @in header
 // @name X-Session-Token
 
-// setupFileLogger creates a log file in the app data directory
 func setupFileLogger() *os.File {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -122,7 +121,7 @@ func main() {
 	}
 
 	// Initialise core components
-	sessionStore := ytmusic.NewSessionStore()
+	sessionStore := ytmusic.NewSessionStoreWithConfig(cfg.Auth.Cookies)
 	ytClient := ytmusic.NewClient()
 
 	audioPlayer, err := player.NewPlayer(cfg.Discord.ClientID)
@@ -142,19 +141,20 @@ func main() {
 		}
 	}
 
-	// Create handlers
-	authHandler := handlers.NewAuthHandler(sessionStore, ytClient, cfg.Auth.Cookies)
+	authHandler := handlers.NewAuthHandler(sessionStore, ytClient, cfg)
 	playerHandler := handlers.NewPlayerHandler(audioPlayer, ytClient)
 	queueHandler := handlers.NewQueueHandler(audioPlayer, ytClient)
 	playlistHandler := handlers.NewPlaylistHandler(audioPlayer, ytClient)
 	searchHandler := handlers.NewSearchHandler(ytClient)
 	lyricsHandler := handlers.NewLyricsHandler()
+	browseHandler := handlers.NewBrowseHandler(ytClient)
 
 	// Setup Gin router
 	r := gin.Default()
 
 	// --- Public routes (no auth required) ---
 	r.POST("/auth/login", authHandler.Login)
+	r.POST("/auth/refresh", authHandler.Refresh)
 	r.GET("/auth/status", authHandler.Status)
 	r.GET("/lyrics", lyricsHandler.GetLyrics)
 
@@ -163,7 +163,7 @@ func main() {
 
 	// --- Protected routes (auth required) ---
 	auth := r.Group("/")
-	auth.Use(middleware.AuthRequired(sessionStore, cfg.Auth.Cookies))
+	auth.Use(middleware.AuthRequired(sessionStore, cfg))
 	{
 		// Auth
 		auth.GET("/user", authHandler.UserInfo)
@@ -194,6 +194,10 @@ func main() {
 
 		// Search
 		auth.GET("/search", searchHandler.Search)
+
+		// Browse (Artists/Albums)
+		auth.GET("/artists/:id", browseHandler.GetArtist)
+		auth.GET("/albums/:id", browseHandler.GetAlbum)
 	}
 
 	// Start server

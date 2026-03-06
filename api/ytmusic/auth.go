@@ -16,17 +16,20 @@ const (
 
 // Session represents an authenticated user session.
 type Session struct {
-	Token     string
-	Cookies   string
-	SAPISID   string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	Token       string
+	Cookies     string
+	SAPISID     string
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	CookiesHash string
 }
 
 // SessionStore manages active sessions in memory.
 type SessionStore struct {
-	mu       sync.RWMutex
-	sessions map[string]*Session // keyed by token
+	mu           sync.RWMutex
+	sessions     map[string]*Session
+	cookiesHash  string
+	preseededCfg string
 }
 
 // NewSessionStore creates a new empty session store.
@@ -36,12 +39,26 @@ func NewSessionStore() *SessionStore {
 	}
 }
 
+func NewSessionStoreWithConfig(preseededCookies string) *SessionStore {
+	store := &SessionStore{
+		sessions:     make(map[string]*Session),
+		preseededCfg: preseededCookies,
+	}
+	if preseededCookies != "" {
+		store.cookiesHash = hashCookies(preseededCookies)
+	}
+	return store
+}
+
 // CreateSession parses the cookie string, extracts SAPISID, and stores a new session.
 // Returns the session or an error if SAPISID is not found.
 func (s *SessionStore) CreateSession(cookies string) (*Session, error) {
+	return s.CreateSessionWithHash(cookies, "")
+}
+
+func (s *SessionStore) CreateSessionWithHash(cookies string, cookiesHash string) (*Session, error) {
 	sapisid := extractCookieValue(cookies, "SAPISID")
 	if sapisid == "" {
-		// Also try __Secure-3PAPISID which is the same value
 		sapisid = extractCookieValue(cookies, "__Secure-3PAPISID")
 	}
 	if sapisid == "" {
@@ -49,12 +66,16 @@ func (s *SessionStore) CreateSession(cookies string) (*Session, error) {
 	}
 
 	token := uuid.New().String()
+	if cookiesHash == "" {
+		cookiesHash = hashCookies(cookies)
+	}
 	session := &Session{
-		Token:     token,
-		Cookies:   cookies,
-		SAPISID:   sapisid,
-		ExpiresAt: time.Now().Add(24 * 365 * time.Hour), // ~1 year, matching cookie lifespan
-		CreatedAt: time.Now(),
+		Token:       token,
+		Cookies:     cookies,
+		SAPISID:     sapisid,
+		ExpiresAt:   time.Now().Add(24 * 365 * time.Hour),
+		CreatedAt:   time.Now(),
+		CookiesHash: cookiesHash,
 	}
 
 	s.mu.Lock()
@@ -84,6 +105,48 @@ func (s *SessionStore) DeleteSession(token string) {
 	s.mu.Lock()
 	delete(s.sessions, token)
 	s.mu.Unlock()
+}
+
+func (s *SessionStore) RefreshFromConfig(newCookies string) (*Session, error) {
+	if newCookies == "" {
+		return nil, fmt.Errorf("no pre-seeded cookies available")
+	}
+
+	newHash := hashCookies(newCookies)
+	s.mu.Lock()
+	s.preseededCfg = newCookies
+	s.cookiesHash = newHash
+	s.mu.Unlock()
+
+	session, err := s.CreateSessionWithHash(newCookies, newHash)
+	if err != nil {
+		return nil, err
+	}
+
+	return session, nil
+}
+
+func (s *SessionStore) GetPreSeededCookies() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.preseededCfg
+}
+
+func (s *SessionStore) GetCookiesHash() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cookiesHash
+}
+
+func (s *SessionStore) CookiesChanged(newHash string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cookiesHash != newHash
+}
+
+func hashCookies(cookies string) string {
+	h := sha1.Sum([]byte(cookies))
+	return fmt.Sprintf("%x", h)
 }
 
 // GetAnySession returns any valid session from the store (useful for pre-seeded auth).

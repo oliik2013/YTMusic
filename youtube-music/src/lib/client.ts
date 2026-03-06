@@ -1,11 +1,13 @@
 import { getPreferenceValues } from "@raycast/api";
 import { client } from "../generated/client.gen";
-import { getToken } from "./auth";
+import { getToken, saveToken, clearToken, AuthError, needsCookieRefresh } from "./auth";
 
 interface Preferences {
   apiUrl: string;
   authMode: "localhost" | "cookies";
 }
+
+let clientInitialized = false;
 
 export async function initClient(): Promise<void> {
   const { apiUrl, authMode } = getPreferenceValues<Preferences>();
@@ -15,7 +17,6 @@ export async function initClient(): Promise<void> {
 
   const isLocalhost = /localhost|127\.0\.0\.1/.test(baseUrl);
 
-  // If we are using cookie auth, or not on localhost, attach the token
   if (authMode !== "localhost" || !isLocalhost) {
     const token = await getToken();
     if (token) {
@@ -23,9 +24,31 @@ export async function initClient(): Promise<void> {
         request.headers.set("X-Session-Token", token);
         return request;
       });
-    } else {
-      // Warning user when auth token is missing for actions that require it.
-      // Commands handle this by capturing HTTP 401s and bubbling up to UI.
     }
+  }
+
+  if (!clientInitialized) {
+    client.interceptors.response.use(async (response, request) => {
+      if (response.status === 401) {
+        const newToken = response.headers.get("X-New-Session-Token");
+        if (newToken) {
+          await saveToken(newToken, new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), true);
+          return response;
+        }
+      }
+      return response;
+    });
+
+    client.interceptors.error.use(async (error, response, request) => {
+      if (response && response.status === 401) {
+        const authError = error as AuthError;
+        if (needsCookieRefresh(authError)) {
+          await clearToken();
+        }
+      }
+      return error;
+    });
+
+    clientInitialized = true;
   }
 }

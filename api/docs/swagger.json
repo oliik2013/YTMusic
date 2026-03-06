@@ -14,6 +14,98 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
+        "/albums/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns album information including all tracks.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "browse"
+                ],
+                "summary": "Get album details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Album browse ID (starts with MPREb)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AlbumDetail"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/artists/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns artist information including top tracks and albums.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "browse"
+                ],
+                "summary": "Get artist details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Artist browse ID (starts with UC)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ArtistDetail"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Submit your browser Cookie header string to create an authenticated session.\nCopy it from a POST request to music.youtube.com in browser DevTools (Network tab).",
@@ -115,6 +207,66 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/lyrics": {
+            "get": {
+                "description": "Searches LrcLib for lyrics by track name and artist. Returns synced lyrics if available, otherwise plain lyrics.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lyrics"
+                ],
+                "summary": "Get lyrics for a track",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Track name",
+                        "name": "track_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Artist name",
+                        "name": "artist_name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Album name (optional)",
+                        "name": "album_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.LyricsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -911,69 +1063,39 @@
                     }
                 }
             }
-        },
-        "/lyrics": {
-            "get": {
-                "description": "Searches LrcLib for lyrics by track name and artist. Returns synced lyrics if available, otherwise plain lyrics.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "lyrics"
-                ],
-                "summary": "Get lyrics for a track",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Track name",
-                        "name": "track_name",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Artist name",
-                        "name": "artist_name",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Album name (optional)",
-                        "name": "album_name",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.LyricsResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
+        "models.AlbumDetail": {
+            "type": "object",
+            "properties": {
+                "artist": {
+                    "type": "string",
+                    "example": "Rick Astley"
+                },
+                "browse_id": {
+                    "type": "string",
+                    "example": "MPREb_..."
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Whenever You Need Somebody"
+                },
+                "tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Track"
+                    }
+                },
+                "year": {
+                    "type": "string",
+                    "example": "1987"
+                }
+            }
+        },
         "models.AlbumInfo": {
             "type": "object",
             "properties": {
@@ -1024,6 +1146,38 @@
                 }
             }
         },
+        "models.ArtistDetail": {
+            "type": "object",
+            "properties": {
+                "albums": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AlbumRef"
+                    }
+                },
+                "browse_id": {
+                    "type": "string",
+                    "example": "UCuAXFkgsw1L7xaCfnd5JJOw"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Rick Astley"
+                },
+                "subscribers": {
+                    "type": "string",
+                    "example": "2.5M subscribers"
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "top_tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Track"
+                    }
+                }
+            }
+        },
         "models.AuthStatusResponse": {
             "type": "object",
             "properties": {
@@ -1045,6 +1199,21 @@
                 }
             }
         },
+        "models.ErrorCode": {
+            "type": "string",
+            "enum": [
+                "SESSION_EXPIRED",
+                "COOKIES_EXPIRED",
+                "CONFIG_UNCHANGED",
+                "NO_PRESEEDED_COOKIES"
+            ],
+            "x-enum-varnames": [
+                "ErrorCodeSessionExpired",
+                "ErrorCodeCookiesExpired",
+                "ErrorCodeConfigUnchanged",
+                "ErrorCodeNoPreseededCookies"
+            ]
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -1055,6 +1224,14 @@
                 "error": {
                     "type": "string",
                     "example": "unauthorized"
+                },
+                "error_code": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ErrorCode"
+                        }
+                    ],
+                    "example": "SESSION_EXPIRED"
                 }
             }
         },
@@ -1065,7 +1242,6 @@
             ],
             "properties": {
                 "cookies": {
-                    "description": "Raw Cookie header string copied from browser DevTools",
                     "type": "string",
                     "example": "SAPISID=abc123/...; __Secure-3PSID=..."
                 }
@@ -1081,6 +1257,64 @@
                 "token": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "models.LyricsLine": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "example": "We're no strangers to love"
+                },
+                "time_ms": {
+                    "type": "integer",
+                    "example": 5000
+                }
+            }
+        },
+        "models.LyricsResponse": {
+            "type": "object",
+            "properties": {
+                "album_name": {
+                    "type": "string",
+                    "example": "Whenever You Need Somebody"
+                },
+                "artist_name": {
+                    "type": "string",
+                    "example": "Rick Astley"
+                },
+                "duration": {
+                    "type": "number",
+                    "example": 213
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 12345
+                },
+                "instrumental": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "parsed_lyrics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.LyricsLine"
+                    }
+                },
+                "plain_lyrics": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "lrclib"
+                },
+                "synced_lyrics": {
+                    "type": "string"
+                },
+                "track_name": {
+                    "type": "string",
+                    "example": "Never Gonna Give You Up"
                 }
             }
         },
@@ -1108,6 +1342,11 @@
         "models.PlayerState": {
             "type": "object",
             "properties": {
+                "current_position_ms": {
+                    "description": "Current playback position in milliseconds",
+                    "type": "integer",
+                    "example": 50000
+                },
                 "current_track": {
                     "$ref": "#/definitions/models.Track"
                 },
@@ -1353,64 +1592,6 @@
                 "volume": {
                     "type": "integer",
                     "example": 80
-                }
-            }
-        },
-        "models.LyricsLine": {
-            "type": "object",
-            "properties": {
-                "time_ms": {
-                    "type": "integer",
-                    "example": 5000
-                },
-                "text": {
-                    "type": "string",
-                    "example": "We're no strangers to love"
-                }
-            }
-        },
-        "models.LyricsResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer",
-                    "example": 12345
-                },
-                "track_name": {
-                    "type": "string",
-                    "example": "Never Gonna Give You Up"
-                },
-                "artist_name": {
-                    "type": "string",
-                    "example": "Rick Astley"
-                },
-                "album_name": {
-                    "type": "string",
-                    "example": "Whenever You Need Somebody"
-                },
-                "duration": {
-                    "type": "number",
-                    "example": 213.0
-                },
-                "instrumental": {
-                    "type": "boolean",
-                    "example": false
-                },
-                "plain_lyrics": {
-                    "type": "string"
-                },
-                "synced_lyrics": {
-                    "type": "string"
-                },
-                "parsed_lyrics": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.LyricsLine"
-                    }
-                },
-                "source": {
-                    "type": "string",
-                    "example": "lrclib"
                 }
             }
         }

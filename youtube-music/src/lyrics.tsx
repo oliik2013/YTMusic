@@ -3,9 +3,6 @@ import {
   ActionPanel,
   Detail,
   Icon,
-  Toast,
-  showToast,
-  getPreferenceValues,
 } from "@raycast/api";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, useRef } from "react";
@@ -17,35 +14,15 @@ import {
 } from "./generated/@tanstack/react-query.gen";
 import { findCurrentLineIndex } from "./lib/lyrics";
 
-interface Preferences {
-  apiUrl: string;
-  authMode: "localhost" | "cookies";
-}
-
-export default function Command() {
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    initClient().then(() => setInitialized(true));
-  }, []);
-
-  if (!initialized) return <Detail isLoading />;
-
-  return (
-    <QueryProvider>
-      <LyricsView />
-    </QueryProvider>
-  );
-}
-
 function LyricsView() {
   const { data: playerState, isLoading: playerLoading } = useQuery({
     ...getPlayerStateOptions(),
-    refetchInterval: 1000,
+    refetchInterval: 500,
   });
 
   const track = playerState?.current_track;
   const isPlaying = playerState?.is_playing && !playerState?.is_paused;
+  const serverPositionMs = playerState?.current_position_ms || 0;
 
   const { data: lyrics, isLoading: lyricsLoading, error: lyricsError } = useQuery({
     ...getLyricsOptions({
@@ -61,38 +38,43 @@ function LyricsView() {
   });
 
   const [currentLineIndex, setCurrentLineIndex] = useState(-1);
-  const [estimatedTime, setEstimatedTime] = useState(0);
-  const lastUpdateRef = useRef(Date.now());
+  const lastPositionTimeRef = useRef<number>(Date.now());
+  const lastKnownPositionRef = useRef<number>(0);
+  const currentTrackIdRef = useRef<string | undefined>();
 
   useEffect(() => {
-    if (!isPlaying || !lyrics?.parsed_lyrics?.length) {
-      return;
+    if (track?.video_id !== currentTrackIdRef.current) {
+      currentTrackIdRef.current = track?.video_id;
+      setCurrentLineIndex(-1);
+      lastKnownPositionRef.current = 0;
+      lastPositionTimeRef.current = Date.now();
     }
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - lastUpdateRef.current;
-      lastUpdateRef.current = now;
-
-      setEstimatedTime((prev) => {
-        const newTime = prev + elapsed;
-        const lines = lyrics.parsed_lyrics || [];
-        const newIndex = findCurrentLineIndex(lines, newTime);
-        if (newIndex !== currentLineIndex) {
-          setCurrentLineIndex(newIndex);
-        }
-        return newTime;
-      });
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, lyrics?.parsed_lyrics, currentLineIndex]);
+  }, [track?.video_id]);
 
   useEffect(() => {
-    lastUpdateRef.current = Date.now();
-    setEstimatedTime(0);
-    setCurrentLineIndex(-1);
-  }, [track?.video_id]);
+    lastKnownPositionRef.current = serverPositionMs;
+    lastPositionTimeRef.current = Date.now();
+  }, [serverPositionMs]);
+
+  useEffect(() => {
+    if (!lyrics?.parsed_lyrics?.length) return;
+
+    const updateCurrentLine = () => {
+      const now = Date.now();
+      const elapsedSinceLastUpdate = isPlaying ? now - lastPositionTimeRef.current : 0;
+      const effectivePosition = lastKnownPositionRef.current + elapsedSinceLastUpdate;
+
+      const lines = lyrics.parsed_lyrics || [];
+      const newIndex = findCurrentLineIndex(lines, effectivePosition);
+
+      setCurrentLineIndex((prev) => (prev !== newIndex ? newIndex : prev));
+    };
+
+    updateCurrentLine();
+
+    const interval = setInterval(updateCurrentLine, 100);
+    return () => clearInterval(interval);
+  }, [isPlaying, lyrics?.parsed_lyrics, serverPositionMs]);
 
   if (playerLoading) {
     return <Detail isLoading />;
@@ -138,19 +120,27 @@ function LyricsView() {
   if (lyrics.instrumental) {
     markdown += "\n🎵 **Instrumental** 🎵\n";
   } else if (hasSyncedLyrics) {
-    for (let i = 0; i < lines.length; i++) {
+    const contextLines = 2;
+    const startIdx = Math.max(0, currentLineIndex - contextLines);
+    const endIdx = Math.min(lines.length, currentLineIndex + contextLines + 5);
+
+    if (startIdx > 0) {
+      markdown += "*...*\n\n";
+    }
+
+    for (let i = startIdx; i < endIdx; i++) {
       const line = lines[i];
-      const timeMs = line.time_ms || 0;
       const isCurrent = i === currentLineIndex;
-      const isPast = i < currentLineIndex;
 
       if (isCurrent) {
         markdown += `**${line.text}**\n\n`;
-      } else if (isPast) {
-        markdown += `${line.text}\n\n`;
       } else {
         markdown += `${line.text}\n\n`;
       }
+    }
+
+    if (endIdx < lines.length) {
+      markdown += "*...*\n\n";
     }
   } else if (lyrics.plain_lyrics) {
     markdown += lyrics.plain_lyrics
@@ -225,5 +215,21 @@ function LyricsView() {
         </ActionPanel>
       }
     />
+  );
+}
+
+export default function Command() {
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    initClient().then(() => setInitialized(true));
+  }, []);
+
+  if (!initialized) return <Detail isLoading />;
+
+  return (
+    <QueryProvider>
+      <LyricsView />
+    </QueryProvider>
   );
 }

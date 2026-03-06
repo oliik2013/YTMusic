@@ -131,12 +131,37 @@ func (c *Client) GetPlaylist(session *Session, playlistID string) (*models.Playl
 		return nil, err
 	}
 
-	// Debug: log the raw response
 	if jsonBytes, marshalErr := json.MarshalIndent(raw, "", "  "); marshalErr == nil {
 		slog.Info("===== PLAYLIST DETAIL RAW RESPONSE =====", "playlistID", playlistID, "json", string(jsonBytes))
 	}
 
 	return parsePlaylistResponse(raw, playlistID), nil
+}
+
+func (c *Client) GetArtist(session *Session, browseID string) (*models.ArtistDetail, error) {
+	body := map[string]interface{}{
+		"browseId": browseID,
+	}
+
+	raw, err := c.doRequest(session, "browse", body)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseArtistResponse(raw, browseID), nil
+}
+
+func (c *Client) GetAlbum(session *Session, browseID string) (*models.AlbumDetail, error) {
+	body := map[string]interface{}{
+		"browseId": browseID,
+	}
+
+	raw, err := c.doRequest(session, "browse", body)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseAlbumResponse(raw, browseID), nil
 }
 
 // GetLibraryPlaylists retrieves the user's library playlists.
@@ -468,6 +493,238 @@ func parsePlaylistItem(item interface{}) *models.Track {
 		Duration:     duration,
 		ThumbnailURL: thumbnail,
 	}
+}
+
+func parseArtistResponse(raw map[string]interface{}, browseID string) *models.ArtistDetail {
+	artist := &models.ArtistDetail{
+		BrowseID: browseID,
+	}
+
+	headerRenderer := navigatePath(raw, "header", "musicImmersiveHeaderRenderer")
+	if headerRenderer == nil {
+		headerRenderer = navigatePath(raw, "header", "musicDetailHeaderRenderer")
+	}
+	if headerMap, ok := headerRenderer.(map[string]interface{}); ok {
+		artist.Name = extractText(navigatePath(headerMap, "title"))
+		artist.ThumbnailURL = extractThumbnailFromObj(headerMap)
+	}
+
+	subscriberText := navigatePath(raw, "header", "musicImmersiveHeaderRenderer", "description")
+	if subscriberText == nil {
+		subscriberText = navigatePath(raw, "header", "musicDetailHeaderRenderer", "subtitle")
+	}
+	if subMap, ok := subscriberText.(map[string]interface{}); ok {
+		artist.Subscribers = extractText(subMap)
+	}
+
+	var sections []interface{}
+	sectionContents := navigatePath(raw, "contents", "singleColumnBrowseResultsRenderer", "tabs")
+	if tabs, ok := sectionContents.([]interface{}); ok && len(tabs) > 0 {
+		if tabContent := navigatePath(tabs[0], "tabRenderer", "content", "sectionListRenderer", "contents"); tabContent != nil {
+			if secs, ok := tabContent.([]interface{}); ok {
+				sections = secs
+			}
+		}
+	}
+
+	if len(sections) == 0 {
+		sectionContents = navigatePath(raw, "contents", "twoColumnBrowseResultsRenderer", "secondaryContents", "sectionListRenderer", "contents")
+		if secs, ok := sectionContents.([]interface{}); ok {
+			sections = secs
+		}
+	}
+
+	for _, section := range sections {
+		sectionTitle := extractText(navigatePath(section, "musicShelfRenderer", "title"))
+		musicContents := navigatePath(section, "musicShelfRenderer", "contents")
+		gridContents := navigatePath(section, "gridRenderer", "items")
+
+		if musicContents != nil {
+			items, ok := musicContents.([]interface{})
+			if !ok {
+				continue
+			}
+			if containsStr(sectionTitle, "Top") || containsStr(sectionTitle, "Song") || len(artist.TopTracks) == 0 {
+				for _, item := range items {
+					track := parsePlaylistItem(item)
+					if track != nil && track.VideoID != "" {
+						artist.TopTracks = append(artist.TopTracks, *track)
+					}
+				}
+			}
+		}
+
+		if gridContents != nil {
+			items, ok := gridContents.([]interface{})
+			if !ok {
+				continue
+			}
+			if containsStr(sectionTitle, "Album") || containsStr(sectionTitle, "Release") {
+				for _, item := range items {
+					album := parseArtistAlbumItem(item)
+					if album != nil {
+						artist.Albums = append(artist.Albums, *album)
+					}
+				}
+			}
+		}
+	}
+
+	slog.Info("Parsed artist", "name", artist.Name, "topTracks", len(artist.TopTracks), "albums", len(artist.Albums))
+	return artist
+}
+
+func parseArtistAlbumItem(item interface{}) *models.AlbumRef {
+	renderer := navigatePath(item, "musicTwoRowItemRenderer")
+	if renderer == nil {
+		return nil
+	}
+	rendererMap, ok := renderer.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	browseID := ""
+	navEndpoint := navigatePath(rendererMap, "navigationEndpoint", "browseEndpoint", "browseId")
+	if id, ok := navEndpoint.(string); ok {
+		browseID = id
+	}
+	if browseID == "" || !containsStr(browseID, "MPRE") {
+		return nil
+	}
+
+	title := extractText(navigatePath(rendererMap, "title"))
+	subtitle := extractText(navigatePath(rendererMap, "subtitle"))
+	thumbnail := extractThumbnailFromObj(rendererMap)
+
+	year := ""
+	if subtitle != "" {
+		parts := splitSubtitle(subtitle)
+		if len(parts) > 0 {
+			lastPart := parts[len(parts)-1]
+			if len(lastPart) == 4 {
+				year = lastPart
+			}
+		}
+	}
+
+	return &models.AlbumRef{
+		BrowseID:     browseID,
+		Title:        title,
+		Artist:       "",
+		Year:         year,
+		ThumbnailURL: thumbnail,
+	}
+}
+
+func parseAlbumResponse(raw map[string]interface{}, browseID string) *models.AlbumDetail {
+	album := &models.AlbumDetail{
+		BrowseID: browseID,
+	}
+
+	headerRenderer := navigatePath(raw, "header", "musicImmersiveHeaderRenderer")
+	if headerRenderer == nil {
+		headerRenderer = navigatePath(raw, "header", "musicDetailHeaderRenderer")
+	}
+	if headerMap, ok := headerRenderer.(map[string]interface{}); ok {
+		album.Title = extractText(navigatePath(headerMap, "title"))
+		album.ThumbnailURL = extractThumbnailFromObj(headerMap)
+
+		subtitle := extractText(navigatePath(headerMap, "subtitle"))
+		if subtitle != "" {
+			parts := splitSubtitle(subtitle)
+			for i, part := range parts {
+				if i == 0 {
+					album.Artist = part
+				} else if len(part) == 4 && part[0] >= '0' && part[0] <= '9' {
+					album.Year = part
+				}
+			}
+		}
+
+		description := navigatePath(headerMap, "description")
+		if descMap, ok := description.(map[string]interface{}); ok {
+			descText := extractText(descMap)
+			if album.Year == "" {
+				for _, part := range splitSubtitle(descText) {
+					if len(part) == 4 && part[0] >= '0' && part[0] <= '9' {
+						album.Year = part
+						break
+					}
+				}
+			}
+		}
+	}
+
+	var sections []interface{}
+	sectionContents := navigatePath(raw, "contents", "singleColumnBrowseResultsRenderer", "tabs")
+	if tabs, ok := sectionContents.([]interface{}); ok && len(tabs) > 0 {
+		if tabContent := navigatePath(tabs[0], "tabRenderer", "content", "sectionListRenderer", "contents"); tabContent != nil {
+			if secs, ok := tabContent.([]interface{}); ok {
+				sections = secs
+			}
+		}
+	}
+
+	if len(sections) == 0 {
+		sectionContents = navigatePath(raw, "contents", "twoColumnBrowseResultsRenderer", "secondaryContents", "sectionListRenderer", "contents")
+		if secs, ok := sectionContents.([]interface{}); ok {
+			sections = secs
+		}
+	}
+
+	for _, section := range sections {
+		musicContents := navigatePath(section, "musicShelfRenderer", "contents")
+		if musicContents == nil {
+			musicContents = navigatePath(section, "musicPlaylistShelfRenderer", "contents")
+		}
+
+		items, ok := musicContents.([]interface{})
+		if !ok || items == nil {
+			continue
+		}
+
+		for _, item := range items {
+			track := parsePlaylistItem(item)
+			if track != nil {
+				album.Tracks = append(album.Tracks, *track)
+			}
+		}
+	}
+
+	slog.Info("Parsed album", "title", album.Title, "artist", album.Artist, "tracks", len(album.Tracks))
+	return album
+}
+
+func splitSubtitle(subtitle string) []string {
+	var parts []string
+	current := ""
+	for _, r := range subtitle {
+		if r == '•' || r == '|' || r == '·' {
+			if current != "" {
+				parts = append(parts, trimSpace(current))
+				current = ""
+			}
+		} else {
+			current += string(r)
+		}
+	}
+	if current != "" {
+		parts = append(parts, trimSpace(current))
+	}
+	return parts
+}
+
+func trimSpace(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
+		end--
+	}
+	return s[start:end]
 }
 
 // parseLibraryPlaylists parses the browse response for library playlists.

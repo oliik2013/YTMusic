@@ -1,5 +1,26 @@
 basePath: /
 definitions:
+  models.AlbumDetail:
+    properties:
+      artist:
+        example: Rick Astley
+        type: string
+      browse_id:
+        example: MPREb_...
+        type: string
+      thumbnail_url:
+        type: string
+      title:
+        example: Whenever You Need Somebody
+        type: string
+      tracks:
+        items:
+          $ref: '#/definitions/models.Track'
+        type: array
+      year:
+        example: "1987"
+        type: string
+    type: object
   models.AlbumInfo:
     properties:
       browse_id:
@@ -35,6 +56,28 @@ definitions:
         example: Rick Astley
         type: string
     type: object
+  models.ArtistDetail:
+    properties:
+      albums:
+        items:
+          $ref: '#/definitions/models.AlbumRef'
+        type: array
+      browse_id:
+        example: UCuAXFkgsw1L7xaCfnd5JJOw
+        type: string
+      name:
+        example: Rick Astley
+        type: string
+      subscribers:
+        example: 2.5M subscribers
+        type: string
+      thumbnail_url:
+        type: string
+      top_tracks:
+        items:
+          $ref: '#/definitions/models.Track'
+        type: array
+    type: object
   models.AuthStatusResponse:
     properties:
       account_name:
@@ -50,6 +93,18 @@ definitions:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
     type: object
+  models.ErrorCode:
+    enum:
+    - SESSION_EXPIRED
+    - COOKIES_EXPIRED
+    - CONFIG_UNCHANGED
+    - NO_PRESEEDED_COOKIES
+    type: string
+    x-enum-varnames:
+    - ErrorCodeSessionExpired
+    - ErrorCodeCookiesExpired
+    - ErrorCodeConfigUnchanged
+    - ErrorCodeNoPreseededCookies
   models.ErrorResponse:
     properties:
       code:
@@ -58,11 +113,14 @@ definitions:
       error:
         example: unauthorized
         type: string
+      error_code:
+        allOf:
+        - $ref: '#/definitions/models.ErrorCode'
+        example: SESSION_EXPIRED
     type: object
   models.LoginRequest:
     properties:
       cookies:
-        description: Raw Cookie header string copied from browser DevTools
         example: SAPISID=abc123/...; __Secure-3PSID=...
         type: string
     required:
@@ -75,6 +133,47 @@ definitions:
         type: string
       token:
         example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  models.LyricsLine:
+    properties:
+      text:
+        example: We're no strangers to love
+        type: string
+      time_ms:
+        example: 5000
+        type: integer
+    type: object
+  models.LyricsResponse:
+    properties:
+      album_name:
+        example: Whenever You Need Somebody
+        type: string
+      artist_name:
+        example: Rick Astley
+        type: string
+      duration:
+        example: 213
+        type: number
+      id:
+        example: 12345
+        type: integer
+      instrumental:
+        example: false
+        type: boolean
+      parsed_lyrics:
+        items:
+          $ref: '#/definitions/models.LyricsLine'
+        type: array
+      plain_lyrics:
+        type: string
+      source:
+        example: lrclib
+        type: string
+      synced_lyrics:
+        type: string
+      track_name:
+        example: Never Gonna Give You Up
         type: string
     type: object
   models.MessageResponse:
@@ -93,6 +192,10 @@ definitions:
     type: object
   models.PlayerState:
     properties:
+      current_position_ms:
+        description: Current playback position in milliseconds
+        example: 50000
+        type: integer
       current_track:
         $ref: '#/definitions/models.Track'
       is_paused:
@@ -277,6 +380,64 @@ info:
   title: YouTube Music API
   version: "1.0"
 paths:
+  /albums/{id}:
+    get:
+      description: Returns album information including all tracks.
+      parameters:
+      - description: Album browse ID (starts with MPREb)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AlbumDetail'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get album details
+      tags:
+      - browse
+  /artists/{id}:
+    get:
+      description: Returns artist information including top tracks and albums.
+      parameters:
+      - description: Artist browse ID (starts with UC)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ArtistDetail'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get artist details
+      tags:
+      - browse
   /auth/login:
     post:
       consumes:
@@ -349,6 +510,47 @@ paths:
       summary: Check authentication status
       tags:
       - auth
+  /lyrics:
+    get:
+      description: Searches LrcLib for lyrics by track name and artist. Returns synced
+        lyrics if available, otherwise plain lyrics.
+      parameters:
+      - description: Track name
+        in: query
+        name: track_name
+        required: true
+        type: string
+      - description: Artist name
+        in: query
+        name: artist_name
+        required: true
+        type: string
+      - description: Album name (optional)
+        in: query
+        name: album_name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LyricsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get lyrics for a track
+      tags:
+      - lyrics
   /player/next:
     post:
       description: Advances to the next track in the queue. Returns the new player

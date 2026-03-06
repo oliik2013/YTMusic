@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 
+	"ytmusic_api/config"
 	"ytmusic_api/models"
 	"ytmusic_api/ytmusic"
 
@@ -11,31 +13,23 @@ import (
 )
 
 const (
-	// SessionTokenHeader is the HTTP header clients must send to authenticate.
-	SessionTokenHeader = "X-Session-Token"
-
-	// SessionKey is the gin context key where the session is stored after auth.
-	SessionKey = "session"
+	SessionTokenHeader  = "X-Session-Token"
+	SessionKey          = "session"
+	NewSessionTokenHeader = "X-New-Session-Token"
 )
 
-// AuthRequired returns a Gin middleware that validates the X-Session-Token header
-// against the given SessionStore. If valid, the session is stored in the context.
-// For localhost requests with pre-seeded cookies in config, auth is skipped entirely.
-// For localhost requests with a Cookie header, auth is skipped if a session can be created.
-func AuthRequired(store *ytmusic.SessionStore, preSeededCookies string) gin.HandlerFunc {
+func AuthRequired(store *ytmusic.SessionStore, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader(SessionTokenHeader)
 
-		// For localhost requests with pre-seeded cookies, skip auth entirely
-		if token == "" && isLocalhost(c) && preSeededCookies != "" {
+		if token == "" && isLocalhost(c) && cfg.Auth.Cookies != "" {
 			session := store.GetAnySession()
 			if session != nil {
 				c.Set(SessionKey, session)
 				c.Next()
 				return
 			}
-			// Try to create a session from pre-seeded cookies
-			session, err := store.CreateSession(preSeededCookies)
+			session, err := store.CreateSession(cfg.Auth.Cookies)
 			if err == nil {
 				c.Set(SessionKey, session)
 				c.Next()
@@ -43,7 +37,6 @@ func AuthRequired(store *ytmusic.SessionStore, preSeededCookies string) gin.Hand
 			}
 		}
 
-		// For localhost requests with a Cookie header, create session from cookie
 		if token == "" && isLocalhost(c) {
 			if cookie := c.GetHeader("Cookie"); cookie != "" {
 				session, err := store.CreateSession(cookie)
@@ -57,22 +50,42 @@ func AuthRequired(store *ytmusic.SessionStore, preSeededCookies string) gin.Hand
 
 		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, models.ErrorResponse{
-				Error: "missing X-Session-Token header",
-				Code:  http.StatusUnauthorized,
+				Error:     "missing X-Session-Token header",
+				Code:      http.StatusUnauthorized,
+				ErrorCode: models.ErrorCodeSessionExpired,
 			})
 			return
 		}
 
 		session := store.GetSession(token)
 		if session == nil {
+			if cfg.Auth.Cookies != "" && isLocalhost(c) {
+				if err := cfg.Reload(); err != nil {
+					slog.Debug("failed to reload config during auto-refresh", "error", err)
+				}
+				
+				currentHash := cfg.CookiesHash()
+				if store.CookiesChanged(currentHash) {
+					newSession, err := store.RefreshFromConfig(cfg.Auth.Cookies)
+					if err == nil {
+						c.Header(NewSessionTokenHeader, newSession.Token)
+						c.Set(SessionKey, newSession)
+						slog.Info("auto-refreshed session from updated config", "token", newSession.Token)
+						c.Next()
+						return
+					}
+					slog.Warn("auto-refresh failed with updated config", "error", err)
+				}
+			}
+
 			c.AbortWithStatusJSON(http.StatusUnauthorized, models.ErrorResponse{
-				Error: "invalid or expired session token",
-				Code:  http.StatusUnauthorized,
+				Error:     "invalid or expired session token",
+				Code:      http.StatusUnauthorized,
+				ErrorCode: models.ErrorCodeSessionExpired,
 			})
 			return
 		}
 
-		// Store session in context for handlers to use
 		c.Set(SessionKey, session)
 		c.Next()
 	}

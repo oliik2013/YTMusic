@@ -1,9 +1,27 @@
 package models
 
+type ErrorCode string
+
+const (
+	ErrorCodeSessionExpired   ErrorCode = "SESSION_EXPIRED"
+	ErrorCodeCookiesExpired   ErrorCode = "COOKIES_EXPIRED"
+	ErrorCodeConfigUnchanged  ErrorCode = "CONFIG_UNCHANGED"
+	ErrorCodeNoPreseededCookies ErrorCode = "NO_PRESEEDED_COOKIES"
+)
+
 // LoginRequest represents the request body for POST /auth/login.
 type LoginRequest struct {
-	// Raw Cookie header string copied from browser DevTools
 	Cookies string `json:"cookies" binding:"required" example:"SAPISID=abc123/...; __Secure-3PSID=..."`
+}
+
+type RefreshRequest struct {
+	Cookies string `json:"cookies,omitempty" example:"SAPISID=abc123/...; __Secure-3PSID=..."`
+}
+
+type RefreshResponse struct {
+	Token         string `json:"token" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ExpiresAt     string `json:"expires_at" example:"2026-03-05T00:00:00Z"`
+	UsedPreseeded bool   `json:"used_preseeded" example:"true"`
 }
 
 // LoginResponse is returned after a successful login.
@@ -135,8 +153,9 @@ type PlaylistListResponse struct {
 
 // ErrorResponse is the standard error payload.
 type ErrorResponse struct {
-	Error string `json:"error" example:"unauthorized"`
-	Code  int    `json:"code" example:"401"`
+	Error     string    `json:"error" example:"unauthorized"`
+	Code      int       `json:"code" example:"401"`
+	ErrorCode ErrorCode `json:"error_code,omitempty" example:"SESSION_EXPIRED"`
 }
 
 // MessageResponse is a simple success message.
@@ -179,4 +198,22 @@ type LyricsResponse struct {
 	SyncedLyrics  string        `json:"synced_lyrics,omitempty"`
 	ParsedLyrics  []LyricsLine  `json:"parsed_lyrics,omitempty"`
 	Source        string        `json:"source" example:"lrclib"`
+}
+
+type ArtistDetail struct {
+	Name         string     `json:"name" example:"Rick Astley"`
+	BrowseID     string     `json:"browse_id" example:"UCuAXFkgsw1L7xaCfnd5JJOw"`
+	ThumbnailURL string     `json:"thumbnail_url,omitempty"`
+	Subscribers  string     `json:"subscribers,omitempty" example:"2.5M subscribers"`
+	TopTracks    []Track    `json:"top_tracks"`
+	Albums       []AlbumRef `json:"albums"`
+}
+
+type AlbumDetail struct {
+	BrowseID     string  `json:"browse_id" example:"MPREb_..."`
+	Title        string  `json:"title" example:"Whenever You Need Somebody"`
+	Artist       string  `json:"artist,omitempty" example:"Rick Astley"`
+	Year         string  `json:"year,omitempty" example:"1987"`
+	ThumbnailURL string  `json:"thumbnail_url,omitempty"`
+	Tracks       []Track `json:"tracks"`
 }

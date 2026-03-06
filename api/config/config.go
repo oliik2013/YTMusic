@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -92,4 +94,34 @@ func SaveConfig(cfg *Config, path string) error {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func (c *Config) CookiesHash() string {
+	if c.Auth.Cookies == "" {
+		return ""
+	}
+	hash := sha256.Sum256([]byte(c.Auth.Cookies))
+	return hex.EncodeToString(hash[:])
+}
+
+func (c *Config) HasPreSeededCookies() bool {
+	return c.Auth.Cookies != ""
+}
+
+func (c *Config) Reload() error {
+	cfgPath, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return fmt.Errorf("reading config file: %w", err)
+	}
+
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return fmt.Errorf("parsing config file: %w", err)
+	}
+
+	return nil
 }

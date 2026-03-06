@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 
+	"ytmusic_api/config"
 	"ytmusic_api/middleware"
 	"ytmusic_api/models"
 	"ytmusic_api/ytmusic"
@@ -13,17 +15,16 @@ import (
 
 // AuthHandler holds dependencies for authentication endpoints.
 type AuthHandler struct {
-	Store           *ytmusic.SessionStore
-	Client          *ytmusic.Client
-	PreSeededCookie string
+	Store    *ytmusic.SessionStore
+	Client   *ytmusic.Client
+	Config   *config.Config
 }
 
-// NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(store *ytmusic.SessionStore, client *ytmusic.Client, preSeededCookie string) *AuthHandler {
+func NewAuthHandler(store *ytmusic.SessionStore, client *ytmusic.Client, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
-		Store:           store,
-		Client:          client,
-		PreSeededCookie: preSeededCookie,
+		Store:  store,
+		Client: client,
+		Config: cfg,
 	}
 }
 
@@ -98,11 +99,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Failure      401 {object} models.ErrorResponse
 // @Router       /auth/status [get]
 func (h *AuthHandler) Status(c *gin.Context) {
-	// First try to get session from auth header
 	session := middleware.GetSession(c)
 
-	// If no session from header, check if pre-seeded cookies exist and request is from localhost
-	if session == nil && h.PreSeededCookie != "" {
+	if session == nil && h.Config.Auth.Cookies != "" {
 		if isLocalhost(c) {
 			session = h.Store.GetAnySession()
 		}
@@ -120,6 +119,74 @@ func (h *AuthHandler) Status(c *gin.Context) {
 		Authenticated: true,
 		Token:         session.Token,
 		ExpiresAt:     session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+	})
+}
+
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req models.RefreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "invalid request body: EOF" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error: "invalid request body: " + err.Error(),
+			Code:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	var session *ytmusic.Session
+	var err error
+	usedPreseeded := false
+
+	if req.Cookies != "" {
+		session, err = h.Store.CreateSession(req.Cookies)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+				Error:     "invalid cookies: " + err.Error(),
+				Code:      http.StatusUnauthorized,
+				ErrorCode: models.ErrorCodeCookiesExpired,
+			})
+			return
+		}
+	} else {
+		if h.Config.Auth.Cookies == "" {
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:     "no pre-seeded cookies configured and no cookies provided in request",
+				Code:      http.StatusBadRequest,
+				ErrorCode: models.ErrorCodeNoPreseededCookies,
+			})
+			return
+		}
+
+		if err := h.Config.Reload(); err != nil {
+			slog.Warn("failed to reload config during refresh", "error", err)
+		}
+
+		currentHash := h.Config.CookiesHash()
+		if !h.Store.CookiesChanged(currentHash) {
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+				Error:     "config unchanged - please update cookies in config.yaml or provide new cookies",
+				Code:      http.StatusUnauthorized,
+				ErrorCode: models.ErrorCodeConfigUnchanged,
+			})
+			return
+		}
+
+		session, err = h.Store.RefreshFromConfig(h.Config.Auth.Cookies)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+				Error:     "failed to refresh with pre-seeded cookies: " + err.Error(),
+				Code:      http.StatusUnauthorized,
+				ErrorCode: models.ErrorCodeCookiesExpired,
+			})
+			return
+		}
+		usedPreseeded = true
+		slog.Info("refreshed session from updated config", "token", session.Token)
+	}
+
+	c.JSON(http.StatusOK, models.RefreshResponse{
+		Token:         session.Token,
+		ExpiresAt:     session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+		UsedPreseeded: usedPreseeded,
 	})
 }
 

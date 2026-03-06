@@ -11,7 +11,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { initClient } from "./lib/client";
 import { QueryProvider } from "./components/QueryProvider";
-import LyricsView from "./lyrics";
+import LyricsCommand from "./lyrics";
 import {
   getPlayerStateOptions,
   postPlayerPauseMutation,
@@ -196,7 +196,7 @@ function NowPlaying() {
             shortcut={{ modifiers: ["cmd"], key: "l" }}
             onAction={() => {
               if (track) {
-                push(<LyricsView />);
+                push(<LyricsCommand />);
               }
             }}
           />
