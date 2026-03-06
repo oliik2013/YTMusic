@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "your.email@example.com",
+                "Name": "You"
+            }
+        ],
+        "Category": "Multimedia",
+        "Description": "A YouTube Music player widget for Plasma",
+        "Icon": "youtube",
+        "Id": "org.kde.ytmusic",
+        "License": "MIT",
+        "Name": "YouTube Music",
+        "Version": "1.0.0",
+        "Website": "https://github.com/StarNumber12046/YTMusic"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
