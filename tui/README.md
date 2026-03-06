@@ -8,12 +8,8 @@ Usage:
 
 ```./ytmusic-tui```
 
-Optional Parameters:
+Variables:
 
-```-host [ip]```
-IP of the API server host
+```YTMUSIC_API_URL=http://localhost:5000```
 
-```-port 9000```
-Port of the API server
-
-TUI Made by @oliik2013 on GitHub and OpenCode MiniMax M2.5
+Changes the API URL

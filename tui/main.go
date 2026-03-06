@@ -1,9 +1,9 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -13,11 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	apiHost string
-	apiPort int
 )
 
 var (
@@ -360,9 +355,10 @@ func (m model) View() string {
 }
 
 func main() {
-	flag.StringVar(&apiHost, "host", "localhost", "API server host")
-	flag.IntVar(&apiPort, "port", 8080, "API server port")
-	flag.Parse()
+	apiUrl := os.Getenv("YTMUSIC_API_URL")
+	if apiUrl == "" {
+		apiUrl = "http://localhost:8080"
+	}
 
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Results"
@@ -374,7 +370,7 @@ func main() {
 	ti.CharLimit = 156
 	ti.Width = 40
 
-	client := api.NewClient(fmt.Sprintf("http://%s:%d", apiHost, apiPort), "")
+	client := api.NewClient(apiUrl, "")
 
 	m := model{
 		client:    client,
