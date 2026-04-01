@@ -12,4 +12,4 @@ API: [Setup](api/README.md)
 
 TUI: [Setup](tui/README.md)
 
-Plasmoid (Beta!): [Setup](plasmoid/README.md)
+Plasmoid: [Setup](plasmoid/README.md)
