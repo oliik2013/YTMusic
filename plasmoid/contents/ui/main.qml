@@ -28,7 +28,7 @@ PlasmoidItem {
     property var playlists: []
     property var queue: []
     property int currentQueuePosition: -1
-    property int currentView: 0 // 0=nowplaying, 1=search, 2=playlists
+    property int currentView: 0
     
     function get(url, endpoint) {
         var xhr = new XMLHttpRequest();
@@ -104,7 +104,6 @@ PlasmoidItem {
     }
     
     function setVolume(vol) {
-        volume = vol;
         post(apiUrl, "/player/volume", { volume: vol });
     }
     
@@ -267,7 +266,7 @@ PlasmoidItem {
                 
                 PlasmaComponents.ToolButton {
                     id: playBtn
-                    icon.name: isPlaying ? "media-pause" : "media-playback-start"
+                    icon.name: isPlaying ? "media-playback-pause" : "media-playback-start"
                     onClicked: playPause()
                     enabled: connected
                     width: 36
@@ -283,7 +282,7 @@ PlasmoidItem {
                 }
                 
                 PlasmaComponents.ToolButton {
-                    icon.name: shuffle ? "media-playlist-shuffle" : "media-playlist-shuffle"
+                    icon.name: "view-refresh"
                     onClicked: toggleShuffle()
                     enabled: connected
                     checkable: true
@@ -294,7 +293,7 @@ PlasmoidItem {
                 }
                 
                 PlasmaComponents.ToolButton {
-                    icon.name: repeatMode === "off" ? "media-repeat" : (repeatMode === "one" ? "media-repeat-one" : "media-repeat")
+                    icon.name: repeatMode === "off" ? "media-repeat-none" : (repeatMode === "one" ? "media-repeat-one" : "media-repeat-all")
                     onClicked: cycleRepeat()
                     enabled: connected
                     width: 32
@@ -313,11 +312,7 @@ PlasmoidItem {
                     from: 0
                     to: 100
                     value: volume
-                    onValueChanged: {
-                        if (Math.abs(value - volume) > 2) {
-                            setVolume(value)
-                        }
-                    }
+                    onMoved: setVolume(value)
                 }
                 
                 Text {
@@ -368,7 +363,7 @@ PlasmoidItem {
                 
                 PlasmaComponents.Button {
                     text: "Playlists"
-                    onClicked: { currentView = 2; loadPlaylists(); }
+                    onClicked: { currentView = 2; loadPlaylists(); showSearchResults = false; }
                     checked: currentView === 2
                     checkable: true
                     height: 24
@@ -382,6 +377,140 @@ PlasmoidItem {
                 Layout.fillHeight: true
                 color: "#222"
                 radius: 4
+                
+                ScrollView {
+                    anchors.fill: parent
+                    visible: currentView === 0 && showSearchResults && searchResults.length > 0
+                    
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: 2
+                        
+                        Repeater {
+                            model: searchResults
+                            delegate: MouseArea {
+                                width: parent.width
+                                height: 32
+                                onClicked: {
+                                    if (modelData.track) {
+                                        playTrack(modelData.track.video_id);
+                                    } else if (modelData.playlist) {
+                                        playPlaylist(modelData.playlist.id);
+                                    }
+                                }
+                                
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    spacing: 6
+                                    
+                                    Kirigami.Icon {
+                                        source: modelData.track ? "audio-x-generic" : "folder"
+                                        width: 20
+                                        height: 20
+                                    }
+                                    
+                                    Text {
+                                        text: modelData.track ? (modelData.track.title + " - " + modelData.track.artist) : 
+                                               (modelData.playlist ? modelData.playlist.title : "")
+                                        color: "white"
+                                        font.pixelSize: 11
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                    
+                                    PlasmaComponents.ToolButton {
+                                        icon.name: "go-next"
+                                        onClicked: {
+                                            if (modelData.track) {
+                                                playTrackNext(modelData.track.video_id);
+                                            }
+                                        }
+                                        width: 24
+                                        height: 24
+                                        opacity: 0.7
+                                        visible: modelData.track
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                ScrollView {
+                    anchors.fill: parent
+                    visible: currentView === 0 && (!showSearchResults || searchResults.length === 0)
+                    
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: 2
+                        
+                        Text {
+                            text: "Up Next"
+                            color: "#888"
+                            font.pixelSize: 10
+                            font.bold: true
+                            Layout.margins: 4
+                        }
+                        
+                        Repeater {
+                            model: queue
+                            delegate: MouseArea {
+                                width: parent.width
+                                height: 36
+                                onClicked: playTrack(modelData.track.video_id)
+                                
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    spacing: 6
+                                    
+                                    Text {
+                                        text: modelData.position === currentQueuePosition ? ">" : (modelData.position + 1)
+                                        color: modelData.position === currentQueuePosition ? "#1a80f0" : "#666"
+                                        font.pixelSize: 10
+                                        width: 20
+                                    }
+                                    
+                                    Kirigami.Icon {
+                                        source: "audio-x-generic"
+                                        width: 20
+                                        height: 20
+                                    }
+                                    
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 0
+                                        
+                                        Text {
+                                            text: modelData.track.title
+                                            color: modelData.position === currentQueuePosition ? "#1a80f0" : "white"
+                                            font.pixelSize: 11
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        
+                                        Text {
+                                            text: modelData.track.artist
+                                            color: "#888"
+                                            font.pixelSize: 10
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                    
+                                    PlasmaComponents.ToolButton {
+                                        icon.name: "list-add"
+                                        onClicked: playTrackNext(modelData.track.video_id)
+                                        width: 24
+                                        height: 24
+                                        opacity: 0.7
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 ScrollView {
                     anchors.fill: parent
@@ -439,72 +568,10 @@ PlasmoidItem {
                                     
                                     PlasmaComponents.ToolButton {
                                         icon.name: "list-add"
-                                        onClicked: {
-                                            var nextVideoId = modelData.track.video_id;
-                                            playTrackNext(nextVideoId);
-                                        }
+                                        onClicked: playTrackNext(modelData.track.video_id)
                                         width: 24
                                         height: 24
                                         opacity: 0.7
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                ScrollView {
-                    anchors.fill: parent
-                    visible: showSearchResults && searchResults.length > 0
-                    
-                    ColumnLayout {
-                        width: parent.width
-                        spacing: 2
-                        
-                        Repeater {
-                            model: searchResults
-                            delegate: MouseArea {
-                                width: parent.width
-                                height: 32
-                                onClicked: {
-                                    if (modelData.track) {
-                                        playTrack(modelData.track.video_id);
-                                    } else if (modelData.playlist) {
-                                        playPlaylist(modelData.playlist.id);
-                                    }
-                                }
-                                
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 4
-                                    spacing: 6
-                                    
-                                    Kirigami.Icon {
-                                        source: modelData.track ? "audio-x-generic" : "folder"
-                                        width: 20
-                                        height: 20
-                                    }
-                                    
-                                    Text {
-                                        text: modelData.track ? (modelData.track.title + " - " + modelData.track.artist) : 
-                                               (modelData.playlist ? modelData.playlist.title : "")
-                                        color: "white"
-                                        font.pixelSize: 11
-                                        elide: Text.ElideRight
-                                        Layout.fillWidth: true
-                                    }
-                                    
-                                    PlasmaComponents.ToolButton {
-                                        icon.name: "go-next"
-                                        onClicked: {
-                                            if (modelData.track) {
-                                                playTrackNext(modelData.track.video_id);
-                                            }
-                                        }
-                                        width: 24
-                                        height: 24
-                                        opacity: 0.7
-                                        visible: modelData.track
                                     }
                                 }
                             }
